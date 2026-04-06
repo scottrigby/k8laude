@@ -1,0 +1,24 @@
+apiVersion: v2
+name: k8laude
+description: Claude Code on Kubernetes — AI-powered development workspace
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: postgresql
+    version: "16.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: code-server
+    version: "3.33.x"
+    repository: "file://charts/code-server"
+    condition: code-server.enabled
+  - name: traefik
+    version: "39.x.x"
+    repository: https://traefik.github.io/charts
+    condition: traefik.enabled
+  - name: cert-manager
+    version: "v1.17.x"
+    repository: https://charts.jetstack.io
+    condition: cert-manager.enabled

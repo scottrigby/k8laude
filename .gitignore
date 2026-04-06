@@ -1,0 +1,5 @@
+*.tar
+chart/charts/*.tgz
+chart/Chart.lock
+custom-values.yaml
+requirements/

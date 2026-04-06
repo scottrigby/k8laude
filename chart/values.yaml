@@ -1,0 +1,124 @@
+image:
+  repository: k8laude
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 10Gi
+
+service:
+  type: ClusterIP
+  port: 7681
+
+# Claude Code configuration
+claude:
+  # Pre-populated OAuth credentials (base64-encoded .credentials.json content)
+  # Set via --set-file or provide an existing secret name
+  credentialsSecret: ""
+  configDir: /workspace/.claude-config
+  # Debug logging — writes to shared volume, picked up by Fluent Bit sidecar
+  debug:
+    enabled: true
+    logDir: /workspace/.claude-debug
+    logFile: /workspace/.claude-debug/claude-debug.txt
+
+# Fluent Bit sidecar — reads Claude debug logs and ships to PostgreSQL
+fluentbit:
+  image:
+    repository: fluent/fluent-bit
+    tag: "3.2"
+
+# PostgreSQL subchart (Bitnami) — stores searchable Claude debug logs
+# BYO: set postgresql.enabled=false and provide external connection via externalDatabase
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 17.6.0-debian-12-r4
+  auth:
+    username: k8laude
+    password: k8laude
+    database: k8laude
+  primary:
+    persistence:
+      size: 5Gi
+
+# code-server subchart (Coder) — VS Code in the browser
+# BYO: set code-server.enabled=false to use your own IDE (e.g., local VS Code via SSH)
+code-server:
+  enabled: true
+  password: k8laude
+  persistence:
+    enabled: false
+  extraVolumeMounts:
+    - name: workspace
+      mountPath: /home/coder/workspace
+  extraVolumes:
+    - name: workspace
+      persistentVolumeClaim:
+        # Cannot template subchart values — override via --set for different release names:
+        # --set code-server.extraVolumes[0].persistentVolumeClaim.claimName=<release>-workspace
+        claimName: k8laude-workspace
+  extraArgs:
+    - --user-data-dir=/tmp/code-server-data
+
+# Traefik ingress controller
+traefik:
+  enabled: true
+  tlsStore:
+    default:
+      defaultCertificate:
+        secretName: k8laude-tls
+  providers:
+    kubernetesIngress:
+      enabled: true
+      namespaces:
+        - k8laude
+    kubernetesCRD:
+      enabled: true
+      namespaces:
+        - k8laude
+
+# cert-manager for TLS certificate management
+# NOTE: CRDs must be pre-installed: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.crds.yaml
+cert-manager:
+  enabled: true
+  crds:
+    enabled: false
+  extraArgs:
+    - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+    - --dns01-recursive-nameservers-only
+
+# Ingress and TLS configuration
+ingress:
+  enabled: true
+  host: k8laude.local
+  tls:
+    # auto: cert-manager provisions via Let's Encrypt + DNS01 (DigitalOcean)
+    # manual: provide secretName with pre-created TLS secret
+    # selfsigned: cert-manager creates a self-signed cert
+    mode: selfsigned
+    acme:
+      email: ""
+      staging: false
+      digitalocean:
+        accessToken: ""
+
+# External database (used when postgresql.enabled=false)
+externalDatabase:
+  host: ""
+  port: 5432
+  username: k8laude
+  password: ""
+  database: k8laude

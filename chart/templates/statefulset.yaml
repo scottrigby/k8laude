@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{.Release.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Chart.Name}}
+    app.kubernetes.io/instance: {{.Release.Name}}
+spec:
+  serviceName: {{.Release.Name}}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{.Chart.Name}}
+      app.kubernetes.io/instance: {{.Release.Name}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{.Chart.Name}}
+        app.kubernetes.io/instance: {{.Release.Name}}
+    spec:
+      {{- if .Values.postgresql.enabled}}
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.37
+          command: ["sh", "-c", "until nc -z {{.Release.Name}}-postgresql 5432; do echo 'waiting for postgresql...'; sleep 2; done; echo 'postgresql is ready'"]
+      {{- end}}
+      containers:
+        - name: claude
+          image: "{{.Values.image.repository}}:{{.Values.image.tag}}"
+          imagePullPolicy: {{.Values.image.pullPolicy}}
+          command: ["node", "/opt/healthcheck/healthcheck.js"]
+          env:
+            - name: CLAUDE_CONFIG_DIR
+              value: {{.Values.claude.configDir}}
+            {{- if .Values.claude.debug.enabled}}
+            - name: CLAUDE_CODE_DEBUG_LOGS_DIR
+              value: {{.Values.claude.debug.logFile}}
+            {{- end}}
+          ports:
+            - name: http
+              containerPort: 7681
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 7681
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 7681
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12}}
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: healthcheck
+              mountPath: /opt/healthcheck
+            {{- if .Values.claude.credentialsSecret}}
+            - name: claude-config
+              mountPath: {{.Values.claude.configDir}}
+            {{- end}}
+            {{- if .Values.claude.debug.enabled}}
+            - name: debug-logs
+              mountPath: {{.Values.claude.debug.logDir}}
+            {{- end}}
+        {{- if .Values.claude.debug.enabled}}
+        - name: fluentbit
+          image: "{{.Values.fluentbit.image.repository}}:{{.Values.fluentbit.image.tag}}"
+          volumeMounts:
+            - name: debug-logs
+              mountPath: {{.Values.claude.debug.logDir}}
+              readOnly: true
+            - name: fluentbit-config
+              mountPath: /fluent-bit/etc
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        {{- end}}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{.Release.Name}}-workspace
+        - name: healthcheck
+          configMap:
+            name: {{.Release.Name}}-healthcheck
+        {{- if .Values.claude.credentialsSecret}}
+        - name: claude-config
+          secret:
+            secretName: {{.Values.claude.credentialsSecret}}
+        {{- end}}
+        {{- if .Values.claude.debug.enabled}}
+        - name: debug-logs
+          emptyDir: {}
+        - name: fluentbit-config
+          configMap:
+            name: {{.Release.Name}}-fluentbit
+        {{- end}}

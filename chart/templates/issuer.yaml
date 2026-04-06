@@ -1,0 +1,31 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.tls.mode "auto")}}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{.Release.Name}}-letsencrypt
+  labels:
+    app.kubernetes.io/name: {{.Chart.Name}}
+    app.kubernetes.io/instance: {{.Release.Name}}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+spec:
+  acme:
+    {{- if .Values.ingress.tls.acme.staging}}
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    {{- else}}
+    server: https://acme-v02.api.letsencrypt.org/directory
+    {{- end}}
+    email: {{.Values.ingress.tls.acme.email}}
+    privateKeySecretRef:
+      name: {{.Release.Name}}-letsencrypt-key
+    solvers:
+      - selector:
+          dnsZones:
+            - {{.Values.ingress.host}}
+        dns01:
+          digitalocean:
+            tokenSecretRef:
+              name: {{.Release.Name}}-digitalocean
+              key: access-token
+{{- end}}

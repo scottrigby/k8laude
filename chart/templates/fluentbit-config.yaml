@@ -1,0 +1,48 @@
+{{- if .Values.claude.debug.enabled}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Release.Name}}-fluentbit
+  labels:
+    app.kubernetes.io/name: {{.Chart.Name}}
+    app.kubernetes.io/instance: {{.Release.Name}}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Log_Level    info
+        Parsers_File parsers.conf
+
+    [INPUT]
+        Name         tail
+        Path         {{.Values.claude.debug.logDir}}/*.txt
+        Tag          claude.debug
+        Refresh_Interval 5
+        Read_from_Head true
+
+    [OUTPUT]
+        Name         pgsql
+        Match        claude.debug
+        {{- if .Values.postgresql.enabled}}
+        Host         {{.Release.Name}}-postgresql
+        User         {{.Values.postgresql.auth.username}}
+        Password     {{.Values.postgresql.auth.password}}
+        Database     {{.Values.postgresql.auth.database}}
+        {{- else}}
+        Host         {{.Values.externalDatabase.host}}
+        User         {{.Values.externalDatabase.username}}
+        Password     {{.Values.externalDatabase.password}}
+        Database     {{.Values.externalDatabase.database}}
+        {{- end}}
+        Port         5432
+        Table        claude_logs
+        Timestamp_Key timestamp
+
+  parsers.conf: |
+    [PARSER]
+        Name         claude_debug
+        Format       regex
+        Regex        ^(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+\[(?<level>\w+)\]\s+(?<message>.*)$
+        Time_Key     timestamp
+        Time_Format  %Y-%m-%dT%H:%M:%S.%LZ
+{{- end}}

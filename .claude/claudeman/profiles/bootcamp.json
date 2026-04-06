@@ -1,0 +1,30 @@
+{
+  "name": "bootcamp",
+  "description": "Replicated bootcamp — k8laude development with all required domains",
+  "features": {
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "kubectl": "latest",
+      "helm": "latest",
+      "minikube": "none"
+    }
+  },
+  "extraDomains": [
+    "kubernetes.io",
+    "helm.sh",
+    "artifacthub.io",
+    "charts.bitnami.com",
+    "registry-1.docker.io",
+    "charts.jetstack.io",
+    "traefik.github.io",
+    "doc.traefik.io",
+    "cert-manager.io",
+    "cloudnative-pg.github.io",
+    "docs.replicated.com",
+    "api.replicated.com",
+    "replicated.app",
+    "proxy.replicated.com",
+    "registry.replicated.com",
+    "kurl.sh",
+    "k8s.kurl.sh"
+  ]
+}

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Release.Name}}-healthcheck
+  labels:
+    app.kubernetes.io/name: {{.Chart.Name}}
+    app.kubernetes.io/instance: {{.Release.Name}}
+data:
+  healthcheck.js: |
+    const http = require('http');
+    const { execSync } = require('child_process');
+    const server = http.createServer((req, res) => {
+      if (req.url === '/healthz') {
+        try {
+          const version = execSync('claude -v', { timeout: 5000, encoding: 'utf8' }).trim();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok', claude_version: version }));
+        } catch (e) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', message: e.message }));
+        }
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+    server.listen(7681, () => console.log('Health check server on :7681'));

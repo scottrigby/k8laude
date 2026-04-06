@@ -1,0 +1,40 @@
+{{- if .Values.ingress.enabled}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{.Release.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Chart.Name}}
+    app.kubernetes.io/instance: {{.Release.Name}}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    {{- if eq .Values.ingress.tls.mode "auto"}}
+    cert-manager.io/issuer: {{.Release.Name}}-letsencrypt
+    {{- end}}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{.Values.ingress.host}}
+        - "*.{{.Values.ingress.host}}"
+      secretName: {{.Release.Name}}-tls
+  rules:
+    - host: {{.Values.ingress.host}}
+      http:
+        paths:
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: {{.Release.Name}}
+                port:
+                  number: {{.Values.service.port}}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{.Release.Name}}
+                port:
+                  number: {{.Values.service.port}}
+{{- end}}

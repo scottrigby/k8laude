@@ -1,0 +1,10 @@
+.claude-config/
+.claude/
+custom-values.yaml
+*.tar
+chart/
+docs/
+requirements/
+bootcamp/
+*.md
+.git/

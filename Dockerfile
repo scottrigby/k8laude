@@ -1,5 +1,7 @@
 FROM node:20
 
+LABEL org.opencontainers.image.source=https://github.com/scottrigby/k8laude
+
 ARG TZ=UTC
 ENV TZ="$TZ"
 

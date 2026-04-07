@@ -1,5 +1,5 @@
 image:
-  repository: k8laude
+  repository: ghcr.io/scottrigby/k8laude
   tag: latest
   pullPolicy: IfNotPresent
 

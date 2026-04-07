@@ -1,46 +1,71 @@
 # Installing on CMX (Replicated Compatibility Matrix)
 
-> TODO: This is planned for Tier 1+. See [CMX docs](https://docs.replicated.com/vendor/testing-about).
-
-## Overview
-
-CMX provides on-demand Kubernetes clusters for testing Replicated applications.
-Unlike Kind, CMX clusters have real external IPs and can serve HTTPS directly.
-
 ## Prerequisites
 
 - Replicated Vendor Portal account with CMX credits
-- `replicated` CLI installed
-- Application created in Vendor Portal
+- `replicated` CLI (downloaded to `.claude/claudeman/bin/` or installed via brew)
+- `REPLICATED_API_TOKEN` env var set
+- k8laude image pushed to GHCR (`ghcr.io/scottrigby/k8laude:latest`)
 
-## Planned Steps
+## Create CMX Cluster
 
-1. Create CMX cluster via Vendor Portal or CLI:
+```bash
+replicated cluster create --distribution kind --version 1.33 \
+  --instance-type r1.small --ttl 192h --name k8laude-cmx --app k8laude
+
+# Watch it come up
+replicated cluster ls --watch
+
+# Get kubeconfig (auto-merges into KUBECONFIG)
+replicated cluster kubeconfig k8laude-cmx
+```
+
+## Claudeman Access to CMX
+
+CMX kubeconfigs use raw IPs. To access from inside claudeman:
+
+1. Add the CMX cluster IP to your bootcamp profile's `extraDomains`
+2. Run claudeman from local source (patched firewall handles raw IPs):
    ```bash
-   replicated cluster create --distribution eks --version 1.31 \
-     --instance-type r1.medium --disk 100
+   read -s REPLICATED_API_TOKEN && echo "Replicated token set (${#REPLICATED_API_TOKEN} chars)"
+   read -s GH_TOKEN && echo "GH token set (${#GH_TOKEN} chars)"
+
+   ./claudeman/claudeman run --profile=bootcamp \
+     --env KUBECONFIG=/workspace/.claude-config/kubeconfig \
+     --env REPLICATED_API_TOKEN=$REPLICATED_API_TOKEN \
+     --env GH_TOKEN=$GH_TOKEN \
+     -- --continue
    ```
 
-2. Get kubeconfig:
-   ```bash
-   replicated cluster kubeconfig --id <cluster-id> > kubeconfig.yaml
-   export KUBECONFIG=kubeconfig.yaml
-   ```
+## Pre-install CRDs
 
-3. Push images to Replicated registry (Tier 1 CI pipeline)
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.crds.yaml
+tar -xzf chart/charts/traefik-*.tgz -C /tmp/
+kubectl apply -f /tmp/traefik/crds/
+```
 
-4. Install CRDs + Helm chart (same as local, but with registry images)
+## Install
 
-5. Point DNS A record for `k8laude.dev` to cluster's external IP
+```bash
+helm install k8laude ./chart -n k8laude --create-namespace
+```
 
-6. Cert-manager provisions real Let's Encrypt cert via DNS01
+For TLS with Let's Encrypt:
+```bash
+read -s DO_PAT && echo "Token set (${#DO_PAT} chars)"
+helm install k8laude ./chart -n k8laude --create-namespace \
+  -f custom-values.yaml \
+  --set ingress.tls.acme.digitalocean.accessToken="$DO_PAT"
+```
 
 ## Differences from Kind
 
 | Concern | Kind | CMX |
 |---------|------|-----|
-| Image loading | `kind load image-archive` | Push to registry |
+| Image source | `kind load image-archive` | Pull from GHCR |
+| Image pullPolicy | `Never` | `IfNotPresent` |
 | External access | Port-forward only | Real external IP |
 | DNS | `/etc/hosts` hack | Real DNS A record |
 | TLS | Works but port 8443 | Standard port 443 |
-| Storage | Local provisioner | Cloud-backed PVCs |
+| Cluster access from claudeman | `host.containers.internal` | Raw IP in `extraDomains` (patched firewall) |

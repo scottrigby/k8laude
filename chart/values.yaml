@@ -69,7 +69,7 @@ code-server:
     # PVC shared with Claude pod — fixed name, namespace-scoped
     existingClaim: workspace
   extraArgs:
-    - --user-data-dir=/tmp/code-server-data
+    - --user-data-dir=/home/coder/.vscode-settings
 
 # Traefik ingress controller
 traefik:

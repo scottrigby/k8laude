@@ -5,6 +5,7 @@ metadata:
 spec:
   chart:
     name: k8laude
+    chartVersion: ""
 
   helmUpgradeFlags:
     - --timeout

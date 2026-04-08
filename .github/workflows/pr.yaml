@@ -58,7 +58,9 @@ jobs:
             --version 0.0.0-pr${{github.event.number}} \
             --app-version sha-${{github.sha}} \
             -d /tmp/release
-          cp replicated/*.yaml /tmp/release/
+          for f in replicated/*.yaml; do
+            sed "s/chartVersion: .*/chartVersion: \"0.0.0-pr${{github.event.number}}\"/" "$f" > /tmp/release/$(basename "$f")
+          done
 
       - name: Create release
         uses: replicatedhq/replicated-actions/create-release@main

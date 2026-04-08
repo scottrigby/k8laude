@@ -60,7 +60,10 @@ jobs:
             --version ${{steps.version.outputs.version}} \
             --app-version ${{steps.version.outputs.version}} \
             -d /tmp/release
-          cp replicated/*.yaml /tmp/release/
+          # Copy KOTS manifests and inject chart version
+          for f in replicated/*.yaml; do
+            sed "s/chartVersion: .*/chartVersion: \"${{steps.version.outputs.version}}\"/" "$f" > /tmp/release/$(basename "$f")
+          done
 
       - name: Create release and promote to Unstable
         uses: replicatedhq/replicated-actions/create-release@main

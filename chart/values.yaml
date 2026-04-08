@@ -101,7 +101,7 @@ cert-manager:
 # Replicated SDK — instance reporting, license, metrics, updates
 replicated:
   enabled: false
-  fullnameOverride: k8laude-sdk
+  nameOverride: k8laude-sdk
 
 # Ingress and TLS configuration (off by default per rubric 2.7)
 ingress:

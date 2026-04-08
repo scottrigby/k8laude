@@ -180,7 +180,7 @@ spec:
       - name: {{ .name }}
         {{- if .existingClaim }}
         persistentVolumeClaim:
-          claimName: {{ .existingClaim }}
+          claimName: {{ tpl .existingClaim $ }}
         {{- else if .hostPath }}
         hostPath:
           path: {{ .hostPath }}

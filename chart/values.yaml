@@ -64,12 +64,8 @@ code-server:
   extraVolumeMounts:
     - name: workspace
       mountPath: /home/coder/workspace
-  extraVolumes:
-    - name: workspace
-      persistentVolumeClaim:
-        # Cannot template subchart values — override via --set for different release names:
-        # --set code-server.extraVolumes[0].persistentVolumeClaim.claimName=<release>-workspace
-        claimName: k8laude-workspace
+      # tpl in vendored code-server template resolves {{ .Release.Name }}
+      existingClaim: "{{ .Release.Name }}-workspace"
   extraArgs:
     - --user-data-dir=/tmp/code-server-data
     - /home/coder/workspace

@@ -9,19 +9,127 @@ data:
   healthcheck.js: |
     const http = require('http');
     const { execSync } = require('child_process');
-    const server = http.createServer((req, res) => {
+    const fs = require('fs');
+
+    // SDK API endpoint (in-cluster service)
+    const SDK_HOST = process.env.REPLICATED_SDK_HOST || 'k8laude-sdk';
+    const SDK_PORT = process.env.REPLICATED_SDK_PORT || '3000';
+    const SDK_URL = `http://${SDK_HOST}:${SDK_PORT}`;
+
+    // Helper: fetch from SDK API
+    function sdkFetch(path) {
+      return new Promise((resolve, reject) => {
+        http.get(`${SDK_URL}${path}`, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); }
+            catch (e) { resolve(data); }
+          });
+        }).on('error', reject);
+      });
+    }
+
+    // Custom metrics: count debug log lines and report to SDK
+    async function reportMetrics() {
+      try {
+        const logFile = process.env.CLAUDE_CODE_DEBUG_LOGS_DIR || '/workspace/.claude-debug/claude-debug.txt';
+        let logLines = 0;
+        try {
+          const content = fs.readFileSync(logFile, 'utf8');
+          logLines = content.split('\n').filter(l => l.trim()).length;
+        } catch (e) { /* file may not exist yet */ }
+
+        const metrics = {
+          data: [
+            { key: 'debug_log_lines', value: logLines },
+            { key: 'uptime_seconds', value: Math.floor(process.uptime()) }
+          ]
+        };
+
+        const postData = JSON.stringify(metrics);
+        const req = http.request({
+          hostname: SDK_HOST, port: SDK_PORT,
+          path: '/api/v1/app/custom-metrics', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': postData.length }
+        });
+        req.on('error', () => {}); // best effort
+        req.write(postData);
+        req.end();
+      } catch (e) { /* best effort */ }
+    }
+
+    // Report metrics every 60 seconds
+    setInterval(reportMetrics, 60000);
+    setTimeout(reportMetrics, 5000); // initial report after 5s
+
+    const server = http.createServer(async (req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+
       if (req.url === '/healthz') {
         try {
           const version = execSync('claude -v', { timeout: 5000, encoding: 'utf8' }).trim();
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.writeHead(200);
           res.end(JSON.stringify({ status: 'ok', claude_version: version }));
         } catch (e) {
-          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.writeHead(503);
           res.end(JSON.stringify({ status: 'error', message: e.message }));
         }
+
+      } else if (req.url === '/api/license') {
+        // License info from SDK (rubric 2.5, 2.6)
+        try {
+          const license = await sdkFetch('/api/v1/license/fields');
+          res.writeHead(200);
+          res.end(JSON.stringify(license));
+        } catch (e) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: 'SDK not available', message: e.message }));
+        }
+
+      } else if (req.url === '/api/updates') {
+        // Update check from SDK (rubric 2.6)
+        try {
+          const updates = await sdkFetch('/api/v1/app/updates');
+          res.writeHead(200);
+          res.end(JSON.stringify(updates));
+        } catch (e) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: 'SDK not available', message: e.message }));
+        }
+
+      } else if (req.url === '/api/license/validate') {
+        // License validity check (rubric 2.6)
+        try {
+          const info = await sdkFetch('/api/v1/license/info');
+          const isValid = info && !info.isExpired;
+          res.writeHead(isValid ? 200 : 403);
+          res.end(JSON.stringify({
+            valid: isValid,
+            expiry: info.expiresAt || null,
+            entitlements: info.fields || {}
+          }));
+        } catch (e) {
+          res.writeHead(503);
+          res.end(JSON.stringify({ error: 'SDK not available', message: e.message }));
+        }
+
+      } else if (req.url === '/api/feature/voice') {
+        // Feature gate check via SDK (rubric 2.5)
+        try {
+          const fields = await sdkFetch('/api/v1/license/fields');
+          const voiceEnabled = fields && fields.voice_mode_enabled && fields.voice_mode_enabled.value === 'true';
+          res.writeHead(200);
+          res.end(JSON.stringify({ voice_mode_enabled: voiceEnabled }));
+        } catch (e) {
+          res.writeHead(200);
+          res.end(JSON.stringify({ voice_mode_enabled: false, reason: 'SDK not available' }));
+        }
+
       } else {
         res.writeHead(404);
-        res.end();
+        res.end(JSON.stringify({ error: 'not found' }));
       }
     });
-    server.listen(7681, () => console.log('Health check server on :7681'));
+
+    server.listen(7681, () => console.log('k8laude API server on :7681'));

@@ -40,6 +40,12 @@ spec:
             - name: CLAUDE_CODE_DEBUG_LOGS_DIR
               value: {{.Values.claude.debug.logFile}}
             {{- end}}
+            {{- if .Values.replicated.enabled}}
+            - name: REPLICATED_SDK_HOST
+              value: {{.Release.Name}}-sdk
+            - name: REPLICATED_SDK_PORT
+              value: "3000"
+            {{- end}}
           ports:
             - name: http
               containerPort: 7681

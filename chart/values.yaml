@@ -81,12 +81,10 @@ traefik:
   providers:
     kubernetesIngress:
       enabled: true
-      namespaces:
-        - k8laude
+      namespaces: []
     kubernetesCRD:
       enabled: true
-      namespaces:
-        - k8laude
+      namespaces: []
 
 # cert-manager for TLS certificate management
 # NOTE: CRDs must be pre-installed: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.crds.yaml

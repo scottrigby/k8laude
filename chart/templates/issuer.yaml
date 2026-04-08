@@ -1,8 +1,9 @@
 {{- if and .Values.ingress.enabled (eq .Values.ingress.tls.mode "auto")}}
+{{- $tlsSuffix := include "k8laude.tlsSuffix" . -}}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{.Release.Name}}-letsencrypt
+  name: {{.Release.Name}}-letsencrypt{{$tlsSuffix}}
   labels:
     app.kubernetes.io/name: {{.Chart.Name}}
     app.kubernetes.io/instance: {{.Release.Name}}
@@ -18,7 +19,7 @@ spec:
     {{- end}}
     email: {{.Values.ingress.tls.acme.email}}
     privateKeySecretRef:
-      name: {{.Release.Name}}-letsencrypt-key
+      name: {{.Release.Name}}-letsencrypt-key{{$tlsSuffix}}
     solvers:
       - selector:
           dnsZones:

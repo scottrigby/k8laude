@@ -3,6 +3,11 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+# For private GHCR registry:
+#   imagePullSecrets:
+#     - name: ghcr-pull-secret
+
 resources:
   requests:
     cpu: 500m

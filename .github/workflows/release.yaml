@@ -66,6 +66,7 @@ jobs:
           app-slug: k8laude
           api-token: ${{secrets.REPLICATED_API_TOKEN}}
           chart: /tmp/chart-package/k8laude-${{steps.version.outputs.version}}.tgz
+          yaml-dir: replicated
           version: ${{steps.version.outputs.version}}
           promote-channel: Unstable
           release-notes: "Automated release from main (${{github.sha}})"

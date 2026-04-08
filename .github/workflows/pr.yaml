@@ -64,6 +64,7 @@ jobs:
           app-slug: k8laude
           api-token: ${{secrets.REPLICATED_API_TOKEN}}
           chart: /tmp/chart-package/k8laude-0.0.0-pr${{github.event.number}}.tgz
+          yaml-dir: replicated
           version: 0.0.0-pr${{github.event.number}}
           promote-channel: pr-${{github.head_ref}}
 

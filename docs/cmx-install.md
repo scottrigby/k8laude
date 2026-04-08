@@ -5,7 +5,12 @@
 - Replicated Vendor Portal account with CMX credits
 - `replicated` CLI (downloaded to `.claude/claudeman/bin/` or installed via brew)
 - `REPLICATED_API_TOKEN` env var set
-- k8laude image pushed to GHCR (`ghcr.io/scottrigby/k8laude:latest`)
+- k8laude multi-arch image pushed to GHCR (`ghcr.io/scottrigby/k8laude:latest`)
+  ```bash
+  # Build multi-arch (CMX uses amd64, local dev may be arm64)
+  podman build --platform linux/amd64,linux/arm64 --manifest ghcr.io/scottrigby/k8laude .
+  podman manifest push --all ghcr.io/scottrigby/k8laude
+  ```
 
 ## Create CMX Cluster
 

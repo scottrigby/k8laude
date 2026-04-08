@@ -72,6 +72,7 @@ code-server:
         claimName: k8laude-workspace
   extraArgs:
     - --user-data-dir=/tmp/code-server-data
+    - /home/coder/workspace
 
 # Traefik ingress controller
 traefik:

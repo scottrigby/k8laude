@@ -118,7 +118,8 @@ data:
         // Feature gate check via SDK (rubric 2.5)
         try {
           const fields = await sdkFetch('/api/v1/license/fields');
-          const voiceEnabled = fields && fields.voice_mode_enabled && fields.voice_mode_enabled.value === 'true';
+          const v = fields && fields.voice_mode_enabled && fields.voice_mode_enabled.value;
+          const voiceEnabled = v === true || v === 'true';
           res.writeHead(200);
           res.end(JSON.stringify({ voice_mode_enabled: voiceEnabled }));
         } catch (e) {

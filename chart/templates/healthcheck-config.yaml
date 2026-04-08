@@ -41,10 +41,10 @@ data:
         } catch (e) { /* file may not exist yet */ }
 
         const metrics = {
-          data: [
-            { key: 'debug_log_lines', value: logLines },
-            { key: 'uptime_seconds', value: Math.floor(process.uptime()) }
-          ]
+          data: {
+            debug_log_lines: logLines,
+            uptime_seconds: Math.floor(process.uptime())
+          }
         };
 
         const postData = JSON.stringify(metrics);

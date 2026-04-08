@@ -13,7 +13,7 @@ metadata:
     cert-manager.io/issuer: {{.Release.Name}}-letsencrypt
     {{- end}}
 spec:
-  ingressClassName: traefik
+  ingressClassName: {{.Release.Name}}-traefik
   tls:
     - hosts:
         - {{.Values.ingress.host}}

@@ -98,9 +98,14 @@ cert-manager:
     - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
     - --dns01-recursive-nameservers-only
 
-# Ingress and TLS configuration
+# Replicated SDK — instance reporting, license, metrics, updates
+replicated:
+  enabled: false
+  fullnameOverride: k8laude-sdk
+
+# Ingress and TLS configuration (off by default per rubric 2.7)
 ingress:
-  enabled: true
+  enabled: false
   host: k8laude.local
   tls:
     # auto: cert-manager provisions via Let's Encrypt + DNS01 (DigitalOcean)

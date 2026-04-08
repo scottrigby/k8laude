@@ -1,0 +1,29 @@
+apiVersion: kots.io/v1beta2
+kind: HelmChart
+metadata:
+  name: k8laude
+spec:
+  chart:
+    name: k8laude
+
+  helmUpgradeFlags:
+    - --timeout
+    - 5m
+    - --wait
+
+  values:
+    replicated:
+      enabled: true
+      fullnameOverride: k8laude-sdk
+    image:
+      repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "ghcr.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "scottrigby" }}/k8laude'
+    imagePullSecrets:
+      - name: '{{repl ImagePullSecretName }}'
+    fluentbit:
+      image:
+        repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "docker.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "fluent" }}/fluent-bit'
+
+  namespace: '{{repl Namespace }}'
+  builder:
+    replicated:
+      enabled: true

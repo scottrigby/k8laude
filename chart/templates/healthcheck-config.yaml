@@ -127,6 +127,47 @@ data:
           res.end(JSON.stringify({ voice_mode_enabled: false, reason: 'SDK not available' }));
         }
 
+      } else if (req.url === '/') {
+        // Landing page with status, update banner, and links
+        res.setHeader('Content-Type', 'text/html');
+        let version = 'unknown', updateBanner = '', licenseStatus = '';
+        try { version = execSync('claude -v', { timeout: 5000, encoding: 'utf8' }).trim(); } catch(e) {}
+        try {
+          const updates = await sdkFetch('/api/v1/app/updates');
+          if (updates && updates.length > 0) {
+            updateBanner = `<div style="background:#fef3c7;border:1px solid #f59e0b;padding:12px;border-radius:8px;margin-bottom:16px">
+              <strong>Update available:</strong> ${updates[0].versionLabel} — ${updates[0].releaseNotes || ''}</div>`;
+          }
+        } catch(e) {}
+        try {
+          const info = await sdkFetch('/api/v1/license/info');
+          if (info && info.isExpired) {
+            licenseStatus = `<div style="background:#fce4ec;border:1px solid #e53e3e;padding:12px;border-radius:8px;margin-bottom:16px">
+              <strong>License expired.</strong> Please renew to continue using k8laude.</div>`;
+          }
+        } catch(e) {}
+        res.writeHead(200);
+        res.end(`<!DOCTYPE html><html><head><title>k8laude</title>
+          <style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:0 20px;color:#1a1a1a}
+          a{color:#2563eb}h1{margin-bottom:4px}code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head>
+          <body>
+          <h1>k8laude</h1><p style="color:#666;margin-top:0">Claude Code on Kubernetes</p>
+          ${updateBanner}${licenseStatus}
+          <table style="border-collapse:collapse;width:100%">
+          <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>Status</strong></td><td style="padding:8px;border-bottom:1px solid #e5e7eb">Running</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>Claude Version</strong></td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${version}</td></tr>
+          </table>
+          <h3>Quick Links</h3>
+          <ul>
+          <li><a href="/ide/">Web IDE (code-server)</a></li>
+          <li><a href="/healthz">Health Check (JSON)</a></li>
+          <li><a href="/api/license">License Info</a></li>
+          <li><a href="/api/updates">Available Updates</a></li>
+          <li><a href="/api/feature/voice">Voice Mode Status</a></li>
+          </ul>
+          <p style="color:#999;font-size:13px">Access Claude CLI: <code>kubectl exec -it k8laude-0 -c claude -- claude</code></p>
+          </body></html>`);
+
       } else {
         res.writeHead(404);
         res.end(JSON.stringify({ error: 'not found' }));

@@ -61,9 +61,8 @@ code-server:
   password: k8laude
   persistence:
     enabled: true
-    # PVC shared with Claude pod. Override for different release names:
-    #   --set code-server.persistence.existingClaim=<release>-workspace
-    existingClaim: k8laude-workspace
+    # PVC shared with Claude pod — fixed name, namespace-scoped
+    existingClaim: workspace
   extraArgs:
     - --user-data-dir=/tmp/code-server-data
 

@@ -89,7 +89,7 @@ spec:
       volumes:
         - name: workspace
           persistentVolumeClaim:
-            claimName: {{.Release.Name}}-workspace
+            claimName: workspace
         - name: healthcheck
           configMap:
             name: {{.Release.Name}}-healthcheck

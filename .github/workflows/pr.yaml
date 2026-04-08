@@ -47,12 +47,23 @@ jobs:
             ghcr.io/${{github.repository}}:sha-${{github.sha}}
             ghcr.io/${{github.repository}}:pr-${{github.event.number}}
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package chart
+        run: |
+          helm dependency update chart
+          helm package chart \
+            --version 0.0.0-pr${{github.event.number}} \
+            --app-version sha-${{github.sha}} \
+            -d /tmp/chart-package
+
       - name: Create release
         uses: replicatedhq/replicated-actions/create-release@main
         with:
           app-slug: k8laude
           api-token: ${{secrets.REPLICATED_API_TOKEN}}
-          chart: chart
+          chart: /tmp/chart-package/k8laude-0.0.0-pr${{github.event.number}}.tgz
           version: 0.0.0-pr${{github.event.number}}
           promote-channel: pr-${{github.head_ref}}
 

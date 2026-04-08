@@ -49,12 +49,23 @@ jobs:
             ghcr.io/${{github.repository}}:${{steps.version.outputs.version}}
             ghcr.io/${{github.repository}}:latest
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package chart
+        run: |
+          helm dependency update chart
+          helm package chart \
+            --version ${{steps.version.outputs.version}} \
+            --app-version ${{steps.version.outputs.version}} \
+            -d /tmp/chart-package
+
       - name: Create release and promote to Unstable
         uses: replicatedhq/replicated-actions/create-release@main
         with:
           app-slug: k8laude
           api-token: ${{secrets.REPLICATED_API_TOKEN}}
-          chart: chart
+          chart: /tmp/chart-package/k8laude-${{steps.version.outputs.version}}.tgz
           version: ${{steps.version.outputs.version}}
           promote-channel: Unstable
           release-notes: "Automated release from main (${{github.sha}})"

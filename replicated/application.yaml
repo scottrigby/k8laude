@@ -1,0 +1,13 @@
+---
+apiVersion: kots.io/v1beta1
+kind: Application
+metadata:
+  name: k8laude
+spec:
+  title: k8laude
+  icon: https://raw.githubusercontent.com/scottrigby/k8laude/main/icon.png
+  allowRollback: true
+  statusInformers:
+    - k8laude/statefulset/k8laude
+    - k8laude/deployment/k8laude-code-server
+    - k8laude/statefulset/k8laude-postgresql

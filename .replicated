@@ -1,0 +1,9 @@
+app-slug: k8laude
+
+charts:
+  - path: chart
+    exclude-when-kots: false
+
+manifests:
+  - path: replicated
+    glob: "*.yaml"

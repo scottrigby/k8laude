@@ -40,4 +40,5 @@
 - [ ] IDE banner injection (VS Code extensions can't inject into the workbench UI — options: fork Traefik rewritebody plugin with Content-Type fix, or proxy in front of code-server like ttyd)
 - [ ] ReadWriteMany storage for multi-node PVC sharing
 - [ ] K8s NetworkPolicies for egress control
+- [ ] Devcontainer-style features for k8s (sidecar containers with tools mounted into Claude pod PATH, like claudeman profiles)
 - [ ] Multi-agent: multiple Claude pods on shared workspace

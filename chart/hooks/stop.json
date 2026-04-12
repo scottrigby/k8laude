@@ -1,0 +1,11 @@
+{
+  "type": "Stop",
+  "definition": {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "jq -e '.last_assistant_message | test(\"(done|complete|finished|ready|created|fixed|updated|written)\"; \"i\")' && notify complete 'Task finished' || true"
+      }
+    ]
+  }
+}

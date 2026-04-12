@@ -1,0 +1,7 @@
+{
+  "marketplace": {
+    "name": "claude-ask-questions",
+    "repo": "scottrigby/claude-ask-questions"
+  },
+  "plugin": "claude-ask-questions@claude-ask-questions"
+}

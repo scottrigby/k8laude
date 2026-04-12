@@ -1,0 +1,24 @@
+# Example: enable all notification hooks
+# Usage: helm upgrade ... -f examples/hooks-values.yaml
+#
+# These hooks use the `notify` command (installed by cloudtty) to send
+# browser notifications when Claude completes tasks, asks questions, or is idle.
+# See: https://github.com/scottrigby/claudeman/blob/main/ARCHITECTURE.md#notifications
+
+claude:
+  hooks:
+    # TaskCompleted: fires once per TaskUpdate(status=completed).
+    # Precise completion signal for tracked work.
+    preciseTaskCompletion: true
+
+    # Stop: fires on every response turn, filtered by completion keywords.
+    # Catches significant one-off responses that have no associated task.
+    untrackedCompletion: true
+
+    # PreToolUse (AskUserQuestion): fires when Claude asks a question.
+    # Consistent and immediate.
+    questionDetection: true
+
+    # Notification (idle_prompt): fires when Claude is waiting for input.
+    # Known issues: fires ~25% of the time, 10+ second delay.
+    idlePrompt: true

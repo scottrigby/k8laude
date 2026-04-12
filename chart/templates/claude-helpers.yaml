@@ -1,0 +1,195 @@
+{{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-claude-helpers
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  setup-claude.sh: |
+    #!/bin/bash
+    # Install notify script and CLAUDE.md into the Claude pod
+    # Called as a postStart lifecycle hook or init step
+
+    CLOUDTTY_SVC="{{ .Release.Name }}-cloudtty"
+    CLOUDTTY_PORT="{{ index .Values "cloudtty" "service" "port" | default "7681" }}"
+    CLOUDTTY_BASE="{{ index .Values "cloudtty" "basePath" | default "/term" }}"
+
+    # Manage hasCompletedOnboarding in .claude.json
+    # Required for CLAUDE_CODE_OAUTH_TOKEN to work in interactive mode.
+    # Add when token is configured, remove when not (like hook fixtures).
+    CLAUDE_JSON="${CLAUDE_CONFIG_DIR:-/workspace/.claude-config}/.claude.json"
+    mkdir -p "$(dirname "$CLAUDE_JSON")"
+    [ ! -f "$CLAUDE_JSON" ] && echo '{}' > "$CLAUDE_JSON"
+    if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+      node -e "const f='$CLAUDE_JSON';const c=JSON.parse(require('fs').readFileSync(f));c.hasCompletedOnboarding=true;require('fs').writeFileSync(f,JSON.stringify(c,null,2))" 2>/dev/null
+    else
+      node -e "const f='$CLAUDE_JSON';const c=JSON.parse(require('fs').readFileSync(f));delete c.hasCompletedOnboarding;require('fs').writeFileSync(f,JSON.stringify(c,null,2))" 2>/dev/null
+    fi
+
+    # Install notify command
+    mkdir -p /tmp/cloudtty-bin
+    cat > /tmp/cloudtty-bin/notify << 'NOTIFY'
+    #!/bin/bash
+    TYPE="${1:-complete}"; shift
+    MESSAGE="${*:-Task complete}"
+    SESSION="${CLOUDTTY_SESSION:-}"
+    HOST="${CLOUDTTY_NOTIFY_HOST:-{{ .Release.Name }}-cloudtty}"
+    PORT="${CLOUDTTY_NOTIFY_PORT:-{{ index .Values "cloudtty" "service" "port" | default "7681" }}}"
+    BASE="${CLOUDTTY_BASE_PATH:-{{ index .Values "cloudtty" "basePath" | default "/term" }}}"
+    curl -s -X POST "http://${HOST}:${PORT}${BASE}/api/notify" \
+      -H "Content-Type: application/json" \
+      -d "{\"type\":\"$TYPE\",\"message\":\"$MESSAGE\",\"sessionId\":\"$SESSION\"}" >/dev/null 2>&1
+    echo "Notified: $TYPE - $MESSAGE"
+    NOTIFY
+    chmod +x /tmp/cloudtty-bin/notify
+
+    # Create CLAUDE.md with notify instructions
+    CLAUDE_MD="/workspace/.claude/CLAUDE.md"
+    mkdir -p /workspace/.claude
+    if [ ! -f "$CLAUDE_MD" ]; then
+      cat > "$CLAUDE_MD" << 'CLAUDEMD'
+    # CloudTTY Notifications
+
+    You have access to the `notify` command for sending notifications to the user's browser.
+
+    ## Usage
+
+    ```bash
+    notify <type> <message>
+    ```
+
+    Types: `complete`, `question`, `idle`, `info`
+
+    ## When to Notify
+
+    - **Task Completion**: `notify complete "Implemented user authentication"`
+    - **Questions**: `notify question "Should I use JWT or session-based auth?"`
+    - **Info**: `notify info "Starting test suite..."`
+
+    ## Guidelines
+
+    - Use `complete` when you've finished what the user asked for
+    - Use `question` when you're blocked and need user input
+    - Keep messages concise
+    - Don't over-notify — only for significant events
+    CLAUDEMD
+    fi
+
+    # Manage notification hooks in Claude settings.json
+    # Hooks are added when true, removed (by verbatim match) when false.
+    # Fixtures are base64-encoded to avoid shell/YAML quoting issues.
+    SETTINGS="/workspace/.claude/settings.json"
+    mkdir -p "$(dirname "$SETTINGS")"
+    [ ! -f "$SETTINGS" ] && echo '{}' > "$SETTINGS"
+
+    mkdir -p /tmp/hook-fixtures
+    echo '{{ $.Files.Get "hooks/taskCompleted.json" | b64enc }}' | base64 -d > /tmp/hook-fixtures/taskCompleted.json
+    echo '{{ $.Files.Get "hooks/stop.json" | b64enc }}' | base64 -d > /tmp/hook-fixtures/stop.json
+    echo '{{ $.Files.Get "hooks/askUserQuestion.json" | b64enc }}' | base64 -d > /tmp/hook-fixtures/askUserQuestion.json
+    echo '{{ $.Files.Get "hooks/idlePrompt.json" | b64enc }}' | base64 -d > /tmp/hook-fixtures/idlePrompt.json
+
+    node << 'NODESCRIPT'
+    const fs = require('fs');
+    const settings = JSON.parse(fs.readFileSync('/workspace/.claude/settings.json', 'utf8'));
+    if (!settings.hooks) settings.hooks = {};
+
+    const config = [
+      { file: '/tmp/hook-fixtures/taskCompleted.json', enabled: {{ .Values.claude.hooks.preciseTaskCompletion }} },
+      { file: '/tmp/hook-fixtures/stop.json', enabled: {{ .Values.claude.hooks.untrackedCompletion }} },
+      { file: '/tmp/hook-fixtures/askUserQuestion.json', enabled: {{ .Values.claude.hooks.questionDetection }} },
+      { file: '/tmp/hook-fixtures/idlePrompt.json', enabled: {{ .Values.claude.hooks.idlePrompt }} },
+    ];
+
+    for (const item of config) {
+      const fixture = JSON.parse(fs.readFileSync(item.file, 'utf8'));
+      const hookType = fixture.type;
+      const hookDef = fixture.definition;
+      const serialized = JSON.stringify(hookDef);
+
+      if (!settings.hooks[hookType]) settings.hooks[hookType] = [];
+
+      // Remove any existing verbatim match
+      settings.hooks[hookType] = settings.hooks[hookType].filter(
+        h => JSON.stringify(h) !== serialized
+      );
+
+      // Add if enabled
+      if (item.enabled) {
+        settings.hooks[hookType].push(hookDef);
+      }
+
+      // Clean up empty arrays
+      if (settings.hooks[hookType].length === 0) {
+        delete settings.hooks[hookType];
+      }
+    }
+
+    {{- if .Values.claude.customHooks }}
+    const custom = {{ .Values.claude.customHooks | toJson }};
+    for (const [k, v] of Object.entries(custom)) {
+      if (!settings.hooks[k]) settings.hooks[k] = [];
+      const existing = new Set(settings.hooks[k].map(h => JSON.stringify(h)));
+      for (const hook of v) {
+        if (!existing.has(JSON.stringify(hook))) settings.hooks[k].push(hook);
+      }
+    }
+    {{- end }}
+
+    fs.writeFileSync('/workspace/.claude/settings.json', JSON.stringify(settings, null, 2));
+    NODESCRIPT
+
+    # Manage plugins (install when true, uninstall when false)
+    # Built-in plugins use fixture files, same pattern as hooks.
+    mkdir -p /tmp/plugin-fixtures
+    echo '{{ $.Files.Get "plugins/askQuestions.json" | b64enc }}' | base64 -d > /tmp/plugin-fixtures/askQuestions.json
+
+    node << 'PLUGINSCRIPT'
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+
+    function run(cmd) {
+      try { return execSync(cmd, { encoding: 'utf8', timeout: 30000, stdio: 'pipe' }); }
+      catch (e) { return e.stdout || ''; }
+    }
+
+    const config = [
+      { file: '/tmp/plugin-fixtures/askQuestions.json', enabled: {{ .Values.claude.plugins.askQuestions }} },
+    ];
+
+    const pluginList = run('claude plugin list 2>&1');
+
+    for (const item of config) {
+      const fixture = JSON.parse(fs.readFileSync(item.file, 'utf8'));
+      const mp = fixture.marketplace;
+      const plugin = fixture.plugin;
+      const installed = pluginList.includes(plugin);
+
+      if (item.enabled && !installed) {
+        // Add marketplace then install plugin
+        run(`claude plugin marketplace add --scope project ${mp.repo} 2>&1`);
+        run(`claude plugin install --scope project ${plugin} 2>&1`);
+        console.log(`Plugin installed: ${plugin}`);
+      } else if (!item.enabled && installed) {
+        // Uninstall plugin then remove marketplace
+        run(`claude plugin uninstall --scope project ${plugin} 2>&1`);
+        run(`claude plugin marketplace remove ${mp.name} 2>&1`);
+        console.log(`Plugin uninstalled: ${plugin}`);
+      }
+    }
+
+    {{- if .Values.claude.customPlugins }}
+    // Install custom plugins (add-only, never removed)
+    // Format: { "marketplace-name": { "repo": "owner/repo", "plugin": "name@marketplace" } }
+    const custom = {{ .Values.claude.customPlugins | toJson }};
+    for (const [key, val] of Object.entries(custom)) {
+      if (!pluginList.includes(val.plugin)) {
+        run(`claude plugin marketplace add --scope project ${val.repo} 2>&1`);
+        run(`claude plugin install --scope project ${val.plugin} 2>&1`);
+        console.log(`Custom plugin installed: ${val.plugin}`);
+      }
+    }
+    {{- end }}
+    PLUGINSCRIPT
+{{- end }}

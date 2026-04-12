@@ -23,14 +23,73 @@ persistence:
 
 service:
   type: ClusterIP
-  port: 7681
+  port: 3000
+
+# Landing page links (override for your access method)
+landingPage:
+  terminalUrl: ""  # e.g., http://127.0.0.1:7681/term/ or /term/ (behind ingress)
+  ideUrl: ""       # e.g., http://127.0.0.1:8080/ or /ide/ (behind ingress)
+  homeUrl: ""      # e.g., http://127.0.0.1:3000 or / (behind ingress)
 
 # Claude Code configuration
 claude:
-  # Pre-populated OAuth credentials (base64-encoded .credentials.json content)
-  # Set via --set-file or provide an existing secret name
-  credentialsSecret: ""
   configDir: /workspace/.claude-config
+  # --- Authentication (see https://code.claude.com/docs/en/authentication) ---
+  # Option A: Long-lived OAuth token (subscription billing)
+  # Requires Claude Pro, Max, Team, or Enterprise plan.
+  # Generate once: claude setup-token
+  # Pass directly (chart creates secret):
+  oauthToken: ""
+  # Or reference existing secret (must have key "token"):
+  oauthTokenSecret: ""
+  # Option B: Anthropic Console API key (API-based billing)
+  # Pass directly (chart creates secret):
+  apiKey: ""
+  # Or reference existing secret (must have key "api-key"):
+  apiKeySecret: ""
+  # Legacy: pre-populated credentials secret
+  credentialsSecret: ""
+  # --- Notification hooks (see https://github.com/scottrigby/claudeman/blob/main/ARCHITECTURE.md#notifications) ---
+  # Merged into Claude's settings.json via postStart hook. Requires notify command (installed by cloudtty).
+  hooks:
+    # TaskCompleted: fires once per TaskUpdate(status=completed). Precise completion signal.
+    preciseTaskCompletion: false
+    # Stop: fires on every response turn. jq filters for completion keywords.
+    # Catches significant one-off responses that have no associated task.
+    untrackedCompletion: false
+    # PreToolUse with matcher AskUserQuestion: fires when Claude asks a question.
+    questionDetection: false
+    # Notification with matcher idle_prompt: fires when Claude is waiting for input.
+    # Known issues: fires ~25% of the time, 10+ second delay.
+    idlePrompt: false
+  # --- Plugins ---
+  # Built-in plugins: installed when true, uninstalled when false (like hooks).
+  plugins:
+    # Enforces Claude to use AskUserQuestion tool instead of plain text questions.
+    # Pairs with claude.hooks.questionDetection for browser notifications.
+    askQuestions: false
+  # Additional custom plugins (install-only, not removed if omitted from values).
+  # Each entry needs: repo (GitHub marketplace source) and plugin (name@marketplace).
+  # The marketplace name may differ from the plugin name.
+  # Example:
+  #   customPlugins:
+  #     my-plugin:
+  #       repo: "owner/marketplace-repo"
+  #       plugin: "plugin-name@marketplace-name"
+  customPlugins: {}
+  # Additional custom hooks (merged as-is into settings.json hooks)
+  # Note: custom hooks are only ADDED, never removed. Unlike built-in hooks
+  # (which use verbatim fixture matching for safe add/remove), custom hooks
+  # cannot be safely removed because settings.json may contain hooks added
+  # by other means (manual edits, plugins, claudeman). To remove a custom
+  # hook, edit settings.json directly.
+  # Example:
+  #   customHooks:
+  #     PostToolUse:
+  #       - hooks:
+  #           - type: command
+  #             command: "echo 'tool used'"
+  customHooks: {}
   # Debug logging — writes to shared volume, picked up by Fluent Bit sidecar
   debug:
     enabled: true
@@ -70,6 +129,53 @@ code-server:
     existingClaim: workspace
   extraArgs:
     - --user-data-dir=/home/coder/.vscode-settings
+    - --app-name=k8laude IDE
+  # Inject k8laude banner into VS Code workbench
+  lifecycle:
+    enabled: true
+    postStart:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - |
+            WORKBENCH="/usr/lib/code-server/lib/vscode/out/vs/code/browser/workbench"
+            HTML="$WORKBENCH/workbench.html"
+            if ! grep -q 'k8laude-banner' "$HTML"; then
+              head -c -8 "$HTML" > /tmp/wh.tmp
+              echo -n '<script>' >> /tmp/wh.tmp
+              cat /opt/ide-banner/inject-ide-banner.js >> /tmp/wh.tmp
+              echo '</script></html>' >> /tmp/wh.tmp
+              cp /tmp/wh.tmp "$HTML"
+              rm /tmp/wh.tmp
+            fi
+  extraConfigmapMounts:
+    - name: ide-banner
+      mountPath: /opt/ide-banner
+      configMap: k8laude-ide-banner
+      readOnly: true
+  # Hide internal directories in the file explorer
+  extraInitContainers: |
+    - name: vscode-settings
+      image: alpine:3.21
+      command:
+        - sh
+        - -c
+        - |
+          apk add --no-cache jq >/dev/null 2>&1
+          SETTINGS="/home/coder/.vscode-settings/User/settings.json"
+          mkdir -p "$(dirname "$SETTINGS")"
+          DEFAULTS='{"files.exclude":{".cache":true,".config":true,".local":true,".vscode-settings":true,".claude-config":true,".claude-debug":true},"workbench.colorTheme":"Visual Studio Dark","editor.minimap.enabled":false,"window.commandCenter":false,"workbench.layoutControl.enabled":false}'
+          if [ -f "$SETTINGS" ]; then
+            TMP=$(mktemp)
+            echo "$DEFAULTS" | jq -s '.[0] * .[1]' "$SETTINGS" - > "$TMP" && mv "$TMP" "$SETTINGS"
+          else
+            echo "$DEFAULTS" | jq . > "$SETTINGS"
+          fi
+          chown -R 1000:1000 "$(dirname "$SETTINGS")"
+      volumeMounts:
+        - name: data
+          mountPath: /home/coder
 
 # Traefik ingress controller
 traefik:
@@ -115,6 +221,15 @@ ingress:
       staging: false
       digitalocean:
         accessToken: ""
+
+# CloudTTY subchart — browser-based terminal for Claude Code
+# Enable with --set cloudtty.enabled=true
+# Values are passed through to the cloudtty subchart
+cloudtty:
+  enabled: false
+  # Set to parent workspace PVC name to share files with claude pod + code-server
+  persistence:
+    existingWorkspaceClaim: workspace
 
 # External database (used when postgresql.enabled=false)
 externalDatabase:

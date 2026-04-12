@@ -1,0 +1,12 @@
+{
+  "type": "PreToolUse",
+  "definition": {
+    "matcher": "AskUserQuestion",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "notify question 'Claude has a question'"
+      }
+    ]
+  }
+}

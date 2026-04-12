@@ -1,3 +1,4 @@
+{{- if .Values.persistence.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -14,6 +15,20 @@ spec:
       app.kubernetes.io/instance: {{.Release.Name}}
   template:
     metadata:
+      annotations:
+        checksum/healthcheck: {{ include (print $.Template.BasePath "/healthcheck-config.yaml") . | sha256sum }}
+        {{- if .Values.claude.debug.enabled }}
+        checksum/fluentbit: {{ include (print $.Template.BasePath "/fluentbit-config.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.claude.oauthToken }}
+        checksum/oauth: {{ include (print $.Template.BasePath "/claude-oauth-secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.claude.apiKey }}
+        checksum/apikey: {{ include (print $.Template.BasePath "/claude-apikey-secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
+        checksum/claude-helpers: {{ include (print $.Template.BasePath "/claude-helpers.yaml") . | sha256sum }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{.Chart.Name}}
         app.kubernetes.io/instance: {{.Release.Name}}
@@ -38,8 +53,36 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: PATH
+              value: /tmp/cloudtty-bin:/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: CLAUDE_CONFIG_DIR
               value: {{.Values.claude.configDir}}
+            {{- if .Values.claude.oauthToken }}
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Release.Name}}-claude-oauth
+                  key: token
+            {{- else if .Values.claude.oauthTokenSecret }}
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Values.claude.oauthTokenSecret}}
+                  key: token
+            {{- end }}
+            {{- if .Values.claude.apiKey }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Release.Name}}-claude-apikey
+                  key: api-key
+            {{- else if .Values.claude.apiKeySecret }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Values.claude.apiKeySecret}}
+                  key: api-key
+            {{- end }}
             {{- if .Values.claude.debug.enabled}}
             - name: CLAUDE_CODE_DEBUG_LOGS_DIR
               value: {{.Values.claude.debug.logFile}}
@@ -52,29 +95,39 @@ spec:
             {{- end}}
           ports:
             - name: http
-              containerPort: 7681
+              containerPort: {{.Values.service.port}}
               protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 7681
+              port: {{.Values.service.port}}
             initialDelaySeconds: 5
             periodSeconds: 30
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 7681
+              port: {{.Values.service.port}}
             initialDelaySeconds: 3
             periodSeconds: 10
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12}}
+          {{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/bash", "/opt/claude-helpers/setup-claude.sh"]
+          {{- end }}
           volumeMounts:
             - name: workspace
               mountPath: /workspace
             - name: healthcheck
               mountPath: /opt/healthcheck
+            {{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
+            - name: claude-helpers
+              mountPath: /opt/claude-helpers
+            {{- end }}
             {{- if .Values.claude.credentialsSecret}}
             - name: claude-config
               mountPath: {{.Values.claude.configDir}}
@@ -107,6 +160,12 @@ spec:
         - name: healthcheck
           configMap:
             name: {{.Release.Name}}-healthcheck
+        {{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
+        - name: claude-helpers
+          configMap:
+            name: {{.Release.Name}}-claude-helpers
+            defaultMode: 0755
+        {{- end }}
         {{- if .Values.claude.credentialsSecret}}
         - name: claude-config
           secret:
@@ -119,3 +178,4 @@ spec:
           configMap:
             name: {{.Release.Name}}-fluentbit
         {{- end}}
+{{- end }}

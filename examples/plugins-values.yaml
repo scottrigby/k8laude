@@ -1,0 +1,12 @@
+# Example: enable built-in plugins
+# Usage: helm upgrade ... -f examples/plugins-values.yaml
+#
+# The askQuestions plugin enforces Claude to use the AskUserQuestion tool
+# instead of asking questions in plain text. Pairs with the questionDetection
+# notification hook for browser notifications when Claude has a question.
+
+claude:
+  plugins:
+    askQuestions: true
+  hooks:
+    questionDetection: true  # notify when Claude asks a question

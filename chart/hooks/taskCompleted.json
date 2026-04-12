@@ -1,0 +1,11 @@
+{
+  "type": "TaskCompleted",
+  "definition": {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "jq -r '\"Task complete: \\(.task_subject)\"' | xargs -I{} notify complete '{}'"
+      }
+    ]
+  }
+}

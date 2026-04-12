@@ -1,0 +1,46 @@
+global:
+  imagePullSecrets: []
+
+image:
+  repository: localhost/k8laude-cloudtty
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Home URL for the banner breadcrumb link
+# Default: http://127.0.0.1:3000 (port-forward). Set to / behind ingress.
+homeUrl: "http://127.0.0.1:3000"
+
+# Base path for the web terminal
+basePath: /term
+
+service:
+  port: 7681
+
+ingress:
+  enabled: false
+  subdomain: ""
+
+# Basic auth for the web terminal (ttyd --credential)
+# Protects the terminal from unauthorized access.
+# Without this, anyone who can reach the URL has full terminal access.
+auth:
+  password: ""  # Set to enable basic auth (username is "k8laude")
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+rbac:
+  clusterAdmin: false
+
+# Command to run in the Claude pod (passed to kubectl exec)
+command: "claude --dangerously-skip-permissions"
+
+# Inject Shift+Enter → newline keybinding (CSI u sequence)
+# Enables Claude Code's multi-line input shortcut in the browser terminal
+shiftEnterNewline: true
+

@@ -1,0 +1,12 @@
+{
+  "type": "Notification",
+  "definition": {
+    "matcher": "idle_prompt",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "notify idle 'Claude is waiting'"
+      }
+    ]
+  }
+}

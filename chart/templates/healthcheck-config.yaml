@@ -1,3 +1,4 @@
+{{- if .Values.persistence.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -149,25 +150,43 @@ data:
         const ns = process.env.POD_NAMESPACE || 'default';
         res.writeHead(200);
         res.end(`<!DOCTYPE html><html><head><title>k8laude</title>
-          <style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:0 20px;color:#1a1a1a}
-          a{color:#2563eb}h1{margin-bottom:4px}code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:13px}
-          .card{border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:12px 0}
-          .copy{cursor:pointer;color:#2563eb;font-size:12px;margin-left:8px}</style></head>
+          <style>body{font-family:system-ui;margin:0;padding:0;color:#c0caf5;background:#1a1b26}
+          .banner{background:#24283b;padding:0 16px;height:35px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #3b4261}
+          .banner h1{font-size:14px;font-weight:600;color:#c0caf5;margin:0}
+          .content{max-width:600px;margin:24px auto;padding:0 20px}
+          a{color:#7aa2f7}code{background:#24283b;padding:2px 6px;border-radius:4px;font-size:13px;color:#c0caf5}
+          .card{border:1px solid #3b4261;border-radius:8px;padding:16px;margin:12px 0}
+          table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #3b4261}
+          </style></head>
           <body>
-          <h1>k8laude</h1><p style="color:#666;margin-top:0">Claude Code on Kubernetes</p>
+          <div class="banner"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-0.17%200.08%20230.10%20223.35%22%3E%0A%20%20%3Ctitle%3Ek8laude%20icon%20%E2%80%94%20asterisk%3C%2Ftitle%3E%0A%20%20%3Cpath%20d%3D%22M225.407%20135.107L206.4%2052.547a14.838%2014.838%200%200%200-7.958-9.9l-76.935-36.73a14.825%2014.825%200%200%200-12.771%200L31.808%2042.669a14.838%2014.838%200%200%200-7.961%209.895L4.873%20135.129a14.668%2014.668%200%200%200%201.995%2011.185c.261.4.538.788.838%201.162l53.246%2066.205a14.98%2014.98%200%200%200%2011.499%205.487l85.387-.02a14.986%2014.986%200%200%200%2011.5-5.48l53.227-66.211a14.72%2014.72%200%200%200%202.842-12.347z%22%20fill%3D%22%23D97757%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M216.208%20133.167l-17.422-75.675a13.602%2013.602%200%200%200-7.293-9.073l-70.521-33.67a13.589%2013.589%200%200%200-11.705%200L38.76%2048.437a13.598%2013.598%200%200%200-7.295%209.072l-17.394%2075.673a13.315%2013.315%200%200%200-.004%205.81%2013.506%2013.506%200%200%200%20.491%201.718%2013.1%2013.1%200%200%200%201.343%202.726c.239.365.491.72.765%201.064l48.804%2060.678c.213.264.448.505.681.75a13.423%2013.423%200%200%200%202.574%202.133%2013.924%2013.924%200%200%200%203.857%201.677%2013.298%2013.298%200%200%200%203.43.473h.759l77.504-.018a12.993%2012.993%200%200%200%201.41-.083%2013.47%2013.47%200%200%200%201.989-.378%2013.872%2013.872%200%200%200%201.381-.442c.353-.135.705-.27%201.045-.433a13.941%2013.941%200%200%200%201.479-.822%2013.303%2013.303%200%200%200%203.237-2.865l1.488-1.85%2047.299-58.84a13.185%2013.185%200%200%200%202.108-3.785%2013.67%2013.67%200%200%200%20.5-1.724%2013.282%2013.282%200%200%200-.004-5.81z%22%20fill%3D%22white%22%2F%3E%0A%20%20%3Cg%20transform%3D%22translate%28115%2C%20118%29%20scale%285.25%29%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M4.709%2015.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0%2011.784l.055-.352.48-.321.686.06%201.52.103%202.278.158%201.652.097%202.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686%201.908%201.476%202.491%201.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97%202.97%200%2001-.104-.729L6.283.134%206.696%200l.996.134.42.364.62%201.414%201.002%202.229%201.555%203.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286%201.851-.559%202.903-.364%201.942h.212l.243-.242.985-1.306%201.652-2.064.73-.82.85-.904.547-.431h1.033l.76%201.129-.34%201.166-1.064%201.347-.881%201.142-1.264%201.7-.79%201.36.073.11.188-.02%202.856-.606%201.543-.28%201.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061%201.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093%201.068%202.006%201.81%202.509%202.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649%202.345%203.521.122%201.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674%207.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434%201.967-2.18%202.945-1.726%201.845-.414.164-.717-.37.067-.662.401-.589%202.388-3.036%201.44-1.882.93-1.086-.006-.158h-.055L4.132%2018.56l-1.13.146-.487-.456.061-.746.231-.243%201.908-1.312-.006.006z%22%20fill%3D%22%23D97757%22%20fill-rule%3D%22nonzero%22%20transform%3D%22translate%28-12%2C-12%29%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E" alt="" style="width:20px;height:20px;vertical-align:middle"><span style="font-size:14px;font-weight:600;color:#c0caf5">k8laude</span><span style="color:#565f89;font-size:12px">&gt;</span><span style="font-size:12px;color:#c0caf5">Home</span></div>
+          <div class="content">
+          <p style="color:#565f89;margin-top:16px">Claude Code on Kubernetes</p>
           ${updateBanner}${licenseStatus}
           <table style="border-collapse:collapse;width:100%">
-          <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>Status</strong></td><td style="padding:8px;border-bottom:1px solid #e5e7eb">Running</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>Claude Version</strong></td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${version}</td></tr>
+          <tr><td><strong>Status</strong></td><td>Running</td></tr>
+          <tr><td><strong>Claude Version</strong></td><td>${version}</td></tr>
           </table>
+          {{- with .Values.landingPage }}
           <div class="card">
-            <strong>Web IDE</strong><br>
-            <a href="/ide/">Open code-server in browser</a>
+            <strong>Web Terminal</strong><br>
+            {{- if .terminalUrl }}
+            <a href="{{ .terminalUrl }}">Open Claude Code CLI in browser</a>
+            {{- else }}
+            <code>kubectl port-forward -n ${ns} svc/k8laude-cloudtty 7681</code>
+            <p style="margin:4px 0 0"><a href="http://127.0.0.1:7681/term/">http://127.0.0.1:7681/term/</a></p>
+            {{- end }}
           </div>
           <div class="card">
-            <strong>Claude Code CLI</strong><br>
-            <p style="margin:8px 0 4px">Run in your terminal:</p>
-            <code>kubectl exec -it -n ${ns} k8laude-0 -c claude -- claude --dangerously-skip-permissions</code>
+            <strong>Web IDE</strong><br>
+            {{- if .ideUrl }}
+            <a href="{{ .ideUrl }}">Open code-server in browser</a>
+            {{- else }}
+            <code>kubectl port-forward -n ${ns} svc/k8laude-code-server 8080</code>
+            <p style="margin:4px 0 0"><a href="http://127.0.0.1:8080/">http://127.0.0.1:8080/</a></p>
+            {{- end }}
+          {{- end }}
+          </div>
           </div>
           </body></html>`);
 
@@ -177,4 +196,5 @@ data:
       }
     });
 
-    server.listen(7681, () => console.log('k8laude API server on :7681'));
+    server.listen({{.Values.service.port}}, () => console.log('k8laude API server on :{{.Values.service.port}}'));
+{{- end }}

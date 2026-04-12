@@ -1,75 +1,124 @@
 # Installing on Kind (Local Development)
 
+[< Back to docs](../README.md#documentation)
+
 ## Prerequisites
 
 - [Kind](https://kind.sigs.k8s.io/)
 - [Podman](https://podman.io/) (or Docker)
 - [Helm](https://helm.sh/)
-- For claudeman development: use the `k8s` profile — see
-  [claudeman k8s profile docs](../../claudeman/profiles/k8s.md) for
-  kubeconfig setup
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
 
-## Build and Load Image
-
-```bash
-podman build -t k8laude:latest .
-podman save k8laude:latest -o k8laude.tar
-kind load image-archive ./k8laude.tar --name k8laude
-```
-
-Note: Podman tags images as `localhost/k8laude`. Set `image.repository=localhost/k8laude` and `image.pullPolicy=Never` in your values.
-
-## Create Cluster and Install
+## 1. Create Cluster
 
 ```bash
 kind create cluster --name k8laude
-
-# Install CRDs (see docs/helm-chart.md#pre-requisites)
-
-# Set DO PAT for TLS
-read -s DO_PAT && echo "Token set (${#DO_PAT} chars)"
-
-# Install with staging cert first
-helm install k8laude ./chart -n k8laude --create-namespace \
-  -f custom-values.yaml \
-  --set ingress.tls.acme.digitalocean.accessToken="$DO_PAT" \
-  --set ingress.tls.acme.staging=true
-
-# Verify staging cert
-kubectl get certificate -n k8laude  # READY=True
-
-# Switch to production
-kubectl delete certificate k8laude-tls -n k8laude
-kubectl delete secret k8laude-tls k8laude-letsencrypt-key -n k8laude
-helm upgrade k8laude ./chart -n k8laude \
-  -f custom-values.yaml \
-  --set ingress.tls.acme.digitalocean.accessToken="$DO_PAT"
 ```
 
-## Accessing Services
-
-Kind doesn't expose ports externally. Use port-forward:
+## 2. Build and Load Images
 
 ```bash
-# HTTPS via Traefik
-kubectl port-forward -n k8laude svc/k8laude-traefik 8443:443 &
+cd k8laude
 
-# Add hosts entry
-echo "127.0.0.1 k8laude.dev" | sudo tee -a /etc/hosts
+# Main image (Claude Code + healthcheck)
+podman build -t localhost/k8laude .
+podman save localhost/k8laude -o /tmp/k8laude.tar
+kind load image-archive /tmp/k8laude.tar --name k8laude
 
-# Verify
-curl -k https://k8laude.dev:8443/healthz
+# CloudTTY image (ttyd + kubectl web terminal)
+podman build -t localhost/k8laude-cloudtty -f chart/charts/cloudtty/Dockerfile .
+podman save localhost/k8laude-cloudtty -o /tmp/k8laude-cloudtty.tar
+kind load image-archive /tmp/k8laude-cloudtty.tar --name k8laude
 ```
 
-| Service | Port-forward | URL |
-|---------|-------------|-----|
-| Health endpoint | `svc/k8laude-traefik 8443:443` | `https://k8laude.dev:8443/healthz` |
-| Claude Code | `kubectl exec -it k8laude-0 -c claude -- claude` | N/A (CLI) |
-| code-server | `svc/k8laude-code-server 8080:8080` | `http://localhost:8080` |
+Note: Podman tags images as `localhost/<name>`. Set `pullPolicy: Never` in your values.
+
+## 3. Install CRDs
+
+Helm doesn't install subchart CRDs automatically:
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.2/cert-manager.crds.yaml
+helm dependency update ./chart
+tar -xzf chart/charts/traefik-*.tgz -C /tmp/
+kubectl apply -f /tmp/traefik/crds/
+```
+
+## 4. Set Up Authentication
+
+Generate a long-lived OAuth token (requires Claude Pro/Max/Team/Enterprise):
+
+```bash
+claude setup-token
+# Copy the token
+
+kubectl create secret generic claude-token -n demo --from-literal=token=<TOKEN>
+```
+
+Or use an API key from console.anthropic.com (API-based billing):
+
+```bash
+kubectl create secret generic claude-api-key -n demo --from-literal=api-key=sk-ant-...
+```
+
+See [authentication.md](authentication.md) for details.
+
+## 5. Install
+
+```bash
+helm install k8laude ./chart -n demo --create-namespace \
+  -f custom-values.yaml \
+  --set cloudtty.enabled=true \
+  --set cloudtty.rbac.clusterAdmin=true \
+  --set cloudtty.image.repository=localhost/k8laude-cloudtty \
+  --set cloudtty.image.pullPolicy=Never \
+  --set claude.oauthTokenSecret=claude-token
+```
+
+See [ingress.md](ingress.md) for TLS setup. Without ingress, use port-forwarding.
+
+## 6. Access via Port-Forward
+
+```bash
+kubectl port-forward -n demo svc/k8laude-cloudtty 7681  # Web terminal
+kubectl port-forward -n demo svc/k8laude-code-server 8080  # VS Code IDE
+kubectl port-forward -n demo svc/k8laude 3000              # Landing page
+```
+
+| Service | URL |
+|---------|-----|
+| Web Terminal | http://127.0.0.1:7681/term/ |
+| Web IDE | http://127.0.0.1:8080 (password: `k8laude`) |
+| Landing Page | http://127.0.0.1:3000 |
+
+## 7. Access via Ingress (optional)
+
+With Traefik + TLS enabled (see [ingress.md](ingress.md)):
+
+```bash
+# Add hosts entries
+echo "127.0.0.1 k8laude.dev demo.k8laude.dev" | sudo tee -a /etc/hosts
+
+# Port-forward Traefik
+kubectl port-forward -n demo svc/k8laude-traefik 8443:443
+```
+
+All services at one URL: `https://demo.k8laude.dev:8443/`
+
+| Path | Service |
+|------|---------|
+| `/term/` | Web Terminal (Claude Code) |
+| `/ide/` | Web IDE (code-server) |
+| `/` | Landing page |
+
+The `:8443` is because port-forwarding uses a non-privileged port. With `sudo kubectl port-forward ... 443:443` or a real LoadBalancer, the URLs are just `https://demo.k8laude.dev/term/`.
 
 ## Teardown
 
 ```bash
-helm uninstall k8laude -n k8laude
+helm uninstall k8laude -n demo
 kind delete cluster --name k8laude
 ```
+
+---
+See also: [Helm chart reference](helm-chart.md)

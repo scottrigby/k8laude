@@ -1,0 +1,348 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cloudtty-extensions
+  labels:
+    app.kubernetes.io/name: cloudtty
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>k8laude Terminal</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          background: #1a1b26;
+          font-family: system-ui, -apple-system, sans-serif;
+          color: #c0caf5;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+        }
+        .toolbar {
+          background: #24283b;
+          padding: 0 16px;
+          height: 35px;
+          box-sizing: content-box;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border-bottom: 1px solid #3b4261;
+          flex-shrink: 0;
+        }
+        .toolbar h1 { font-size: 14px; font-weight: 600; color: #7aa2f7; }
+        .toolbar .status { font-size: 12px; }
+        .toolbar .status.connected { color: #9ece6a; }
+        .toolbar .status.disconnected { color: #f7768e; }
+        .toolbar .btn {
+          background: #3b4261; border: none; color: #c0caf5;
+          padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        .toolbar .btn:hover { background: #565f89; }
+        .toolbar .spacer { flex: 1; }
+        .toolbar .sep { width: 1px; height: 16px; background: #3b4261; }
+        .notif-options {
+          display: flex; align-items: center; gap: 6px; font-size: 11px;
+        }
+        .notif-options label {
+          display: flex; align-items: center; gap: 3px; cursor: pointer;
+          color: #565f89; user-select: none;
+        }
+        .notif-options label.checked { color: #9ece6a; }
+        .notif-options input[type="checkbox"] {
+          appearance: none; -webkit-appearance: none;
+          width: 12px; height: 12px; border: 1px solid #565f89;
+          border-radius: 2px; cursor: pointer; position: relative;
+          background: transparent;
+        }
+        .notif-options input[type="checkbox"]:checked {
+          background: #9ece6a; border-color: #9ece6a;
+        }
+        .notif-options input[type="checkbox"]:checked::after {
+          content: ''; position: absolute; left: 3px; top: 0px;
+          width: 4px; height: 8px;
+          border: solid #1a1b26; border-width: 0 1.5px 1.5px 0;
+          transform: rotate(45deg);
+        }
+        .notif-toggle {
+          font-size: 11px; color: #7aa2f7; cursor: pointer;
+          text-decoration: underline; background: none; border: none;
+          padding: 0;
+        }
+        .notif-toggle:hover { color: #89b4fa; }
+        #terminal-frame {
+          flex: 1; border: none; width: 100%; background: #1a1b26;
+        }
+        .toast-container {
+          position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+          display: flex; flex-direction: column-reverse; gap: 8px;
+        }
+        .toast {
+          background: #24283b; border: 1px solid #3b4261; border-radius: 8px;
+          padding: 10px 14px; max-width: 350px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+          animation: toastIn 0.3s ease; font-size: 13px;
+        }
+        .toast.removing { animation: toastOut 0.3s ease forwards; }
+        @keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(10px); } }
+        .toast-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .type-badge {
+          font-size: 10px; padding: 1px 6px; border-radius: 3px;
+          font-weight: 600; text-transform: uppercase;
+        }
+        .type-complete { background: #9ece6a33; color: #9ece6a; }
+        .type-question { background: #e0af6833; color: #e0af68; }
+        .type-info { background: #7aa2f733; color: #7aa2f7; }
+        .type-idle { background: #bb9af733; color: #bb9af7; }
+
+        .toast-time { font-size: 10px; color: #565f89; }
+        .toast-close {
+          margin-left: auto; cursor: pointer; color: #565f89;
+          font-size: 16px; line-height: 1; padding: 0 4px;
+        }
+        .toast-close:hover { color: #c0caf5; }
+      </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-0.17%200.08%20230.10%20223.35%22%3E%0A%20%20%3Ctitle%3Ek8laude%20icon%20%E2%80%94%20asterisk%3C%2Ftitle%3E%0A%20%20%3Cpath%20d%3D%22M225.407%20135.107L206.4%2052.547a14.838%2014.838%200%200%200-7.958-9.9l-76.935-36.73a14.825%2014.825%200%200%200-12.771%200L31.808%2042.669a14.838%2014.838%200%200%200-7.961%209.895L4.873%20135.129a14.668%2014.668%200%200%200%201.995%2011.185c.261.4.538.788.838%201.162l53.246%2066.205a14.98%2014.98%200%200%200%2011.499%205.487l85.387-.02a14.986%2014.986%200%200%200%2011.5-5.48l53.227-66.211a14.72%2014.72%200%200%200%202.842-12.347z%22%20fill%3D%22%23D97757%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M216.208%20133.167l-17.422-75.675a13.602%2013.602%200%200%200-7.293-9.073l-70.521-33.67a13.589%2013.589%200%200%200-11.705%200L38.76%2048.437a13.598%2013.598%200%200%200-7.295%209.072l-17.394%2075.673a13.315%2013.315%200%200%200-.004%205.81%2013.506%2013.506%200%200%200%20.491%201.718%2013.1%2013.1%200%200%200%201.343%202.726c.239.365.491.72.765%201.064l48.804%2060.678c.213.264.448.505.681.75a13.423%2013.423%200%200%200%202.574%202.133%2013.924%2013.924%200%200%200%203.857%201.677%2013.298%2013.298%200%200%200%203.43.473h.759l77.504-.018a12.993%2012.993%200%200%200%201.41-.083%2013.47%2013.47%200%200%200%201.989-.378%2013.872%2013.872%200%200%200%201.381-.442c.353-.135.705-.27%201.045-.433a13.941%2013.941%200%200%200%201.479-.822%2013.303%2013.303%200%200%200%203.237-2.865l1.488-1.85%2047.299-58.84a13.185%2013.185%200%200%200%202.108-3.785%2013.67%2013.67%200%200%200%20.5-1.724%2013.282%2013.282%200%200%200-.004-5.81z%22%20fill%3D%22white%22%2F%3E%0A%20%20%3Cg%20transform%3D%22translate%28115%2C%20118%29%20scale%285.25%29%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M4.709%2015.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0%2011.784l.055-.352.48-.321.686.06%201.52.103%202.278.158%201.652.097%202.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686%201.908%201.476%202.491%201.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97%202.97%200%2001-.104-.729L6.283.134%206.696%200l.996.134.42.364.62%201.414%201.002%202.229%201.555%203.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286%201.851-.559%202.903-.364%201.942h.212l.243-.242.985-1.306%201.652-2.064.73-.82.85-.904.547-.431h1.033l.76%201.129-.34%201.166-1.064%201.347-.881%201.142-1.264%201.7-.79%201.36.073.11.188-.02%202.856-.606%201.543-.28%201.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061%201.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093%201.068%202.006%201.81%202.509%202.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649%202.345%203.521.122%201.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674%207.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434%201.967-2.18%202.945-1.726%201.845-.414.164-.717-.37.067-.662.401-.589%202.388-3.036%201.44-1.882.93-1.086-.006-.158h-.055L4.132%2018.56l-1.13.146-.487-.456.061-.746.231-.243%201.908-1.312-.006.006z%22%20fill%3D%22%23D97757%22%20fill-rule%3D%22nonzero%22%20transform%3D%22translate%28-12%2C-12%29%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E" alt="" style="width:20px;height:20px;vertical-align:middle">
+        <span style="font-size:14px;font-weight:600;color:#c0caf5">k8laude</span>
+        <span style="color:#565f89;font-size:12px">&gt;</span>
+        <a href="{{ .Values.homeUrl }}" style="font-size:12px;color:#7aa2f7;text-decoration:none">Home</a>
+        <span style="color:#565f89;font-size:12px">&gt;</span>
+        <span style="font-size:12px;color:#c0caf5">Terminal</span>
+        <span class="status disconnected" id="status">connecting...</span>
+        <span class="spacer"></span>
+        <div class="notif-options">
+          <button class="notif-toggle" id="toggle-all" onclick="toggleAll()">all</button>
+          <label id="lbl-toast"><input type="checkbox" id="chk-toast" onchange="savePrefs()"> Toast</label>
+          <label id="lbl-desktop"><input type="checkbox" id="chk-desktop" onchange="onDesktopChange()"> Desktop</label>
+          <label id="lbl-sound"><input type="checkbox" id="chk-sound" onchange="savePrefs()"> Sound</label>
+          <label id="lbl-tts"><input type="checkbox" id="chk-tts" onchange="savePrefs()"> TTS</label>
+        </div>
+        <span class="sep"></span>
+        <button class="btn" onclick="document.getElementById('terminal-frame').src += ''">Reconnect</button>
+      </div>
+      <iframe id="terminal-frame"></iframe>
+      <div class="toast-container" id="toasts"></div>
+
+      <script>
+        const BASE = location.pathname.replace(/\/$/, '');
+        let unreadCount = 0;
+
+        // -- Per-session ID: unique per browser tab --
+        // Stored in sessionStorage so it survives refreshes but not new tabs
+        let SESSION_ID = sessionStorage.getItem('cloudtty-session-id');
+        if (!SESSION_ID) {
+          SESSION_ID = crypto.randomUUID();
+          sessionStorage.setItem('cloudtty-session-id', SESSION_ID);
+        }
+
+        // Set iframe src with session ID so ttyd passes it to bash
+        document.getElementById('terminal-frame').src = `ttyd/?arg=${SESSION_ID}`;
+
+        // -- Service Worker registration --
+        let swRegistration = null;
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register(BASE + '/sw.js', { scope: BASE + '/' })
+            .then(reg => { swRegistration = reg; console.log('SW registered'); })
+            .catch(err => console.error('SW registration failed:', err));
+        }
+
+        // -- Preferences (persisted in localStorage) --
+        const PREF_KEY = 'cloudtty-notif-prefs';
+        let prefs = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+        // Defaults: toast on, others off
+        if (prefs.toast === undefined) prefs.toast = true;
+        if (prefs.desktop === undefined) prefs.desktop = false;
+        if (prefs.sound === undefined) prefs.sound = false;
+        if (prefs.tts === undefined) prefs.tts = false;
+
+        function loadPrefs() {
+          document.getElementById('chk-toast').checked = prefs.toast;
+          document.getElementById('chk-desktop').checked = prefs.desktop;
+          document.getElementById('chk-sound').checked = prefs.sound;
+          document.getElementById('chk-tts').checked = prefs.tts;
+          updateLabels();
+        }
+
+        function savePrefs() {
+          prefs.toast = document.getElementById('chk-toast').checked;
+          prefs.desktop = document.getElementById('chk-desktop').checked;
+          prefs.sound = document.getElementById('chk-sound').checked;
+          prefs.tts = document.getElementById('chk-tts').checked;
+          localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+          updateLabels();
+        }
+
+        function updateLabels() {
+          ['toast', 'desktop', 'sound', 'tts'].forEach(k => {
+            const lbl = document.getElementById('lbl-' + k);
+            lbl.classList.toggle('checked', prefs[k]);
+          });
+          const allOn = prefs.toast && prefs.desktop && prefs.sound && prefs.tts;
+          const allOff = !prefs.toast && !prefs.desktop && !prefs.sound && !prefs.tts;
+          document.getElementById('toggle-all').textContent = allOff ? 'all on' : 'all off';
+        }
+
+        function toggleAll() {
+          const allOff = !prefs.toast && !prefs.desktop && !prefs.sound && !prefs.tts;
+          const val = allOff; // if all off, turn all on; otherwise turn all off
+          prefs.toast = val; prefs.desktop = val; prefs.sound = val; prefs.tts = val;
+          if (val && Notification.permission !== 'granted') {
+            Notification.requestPermission();
+          }
+          localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+          loadPrefs();
+        }
+
+        function onDesktopChange() {
+          const checked = document.getElementById('chk-desktop').checked;
+          if (checked && Notification.permission !== 'granted') {
+            Notification.requestPermission().then(p => {
+              if (p !== 'granted') {
+                document.getElementById('chk-desktop').checked = false;
+              }
+              savePrefs();
+            });
+          } else {
+            savePrefs();
+          }
+        }
+
+        loadPrefs();
+
+        // -- Audio chime --
+        let audioCtx = null;
+        function playChime() {
+          if (!audioCtx) audioCtx = new AudioContext();
+          [440, 660].forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.15 + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + i * 0.15);
+            osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
+          });
+        }
+
+        // -- TTS --
+        function speak(text) {
+          if (!('speechSynthesis' in window)) return;
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = 1.1; u.pitch = 1.0; u.volume = 0.8;
+          speechSynthesis.speak(u);
+        }
+
+        // -- Handle notification event --
+        function handleNotification(data) {
+          const type = data.type || 'info';
+          const message = data.message || '';
+
+          if (prefs.toast) showToast(data);
+
+          if (prefs.desktop && Notification.permission === 'granted' && swRegistration) {
+            // SSE is session-scoped, so only this tab receives its own notifications
+            if (swRegistration.active) {
+              swRegistration.active.postMessage({
+                type: 'show-notification',
+                notification: data
+              });
+            }
+          } else if (prefs.desktop && Notification.permission === 'granted' && !swRegistration) {
+            // Fallback: direct notification (no SW)
+            const n = new Notification(`Claude (${type})`, {
+              body: message,
+              tag: 'cloudtty-' + Date.now(),
+              requireInteraction: type === 'question'
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          }
+
+          if (prefs.sound) playChime();
+
+          if (prefs.tts) {
+            const prefix = type === 'question' ? 'Question: ' : type === 'complete' ? 'Complete: ' : '';
+            const delay = prefs.sound ? 500 : 0;
+            setTimeout(() => speak(prefix + message), delay);
+          }
+
+          if (!document.hasFocus()) {
+            unreadCount++;
+            document.title = `(${unreadCount}) CloudTTY — Claude`;
+          }
+        }
+
+        // -- Toast --
+        function showToast(data) {
+          const container = document.getElementById('toasts');
+          const toast = document.createElement('div');
+          toast.className = 'toast';
+          const type = data.type || 'info';
+          const message = data.message || data.url || '';
+          const time = new Date(data.timestamp || Date.now()).toLocaleTimeString();
+          toast.innerHTML = `
+            <div class="toast-header">
+              <span class="type-badge type-${type}">${type}</span>
+              <span class="toast-time">${time}</span>
+              <span class="toast-close" onclick="this.closest('.toast').remove()">&times;</span>
+            </div>
+            <div>${escapeHtml(message)}</div>
+          `;
+          container.appendChild(toast);
+          const timeout = type === 'question' ? 30000 : 8000;
+          setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+          }, timeout);
+        }
+
+        function escapeHtml(s) {
+          return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        // -- SSE --
+        function connectSSE() {
+          const statusEl = document.getElementById('status');
+          const es = new EventSource(BASE + '/api/events?sessionId=' + SESSION_ID);
+
+          es.onopen = () => {
+            statusEl.textContent = 'connected';
+            statusEl.className = 'status connected';
+          };
+
+          es.onmessage = (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              if (data.type === 'connected') return;
+              handleNotification(data);
+            } catch (err) {
+              console.error('SSE parse error:', err);
+            }
+          };
+
+          es.onerror = () => {
+            statusEl.textContent = 'disconnected';
+            statusEl.className = 'status disconnected';
+            es.close();
+            setTimeout(connectSSE, 3000);
+          };
+        }
+
+        window.addEventListener('focus', () => {
+          unreadCount = 0;
+          document.title = 'k8laude Terminal';
+        });
+
+        connectSSE();
+      </script>
+    </body>
+    </html>

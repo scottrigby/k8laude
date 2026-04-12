@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cloudtty
+  labels:
+    app.kubernetes.io/name: cloudtty
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: cloudtty
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudtty
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/scripts: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/extensions: {{ include (print $.Template.BasePath "/extensions-configmap.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: cloudtty
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: cloudtty
+    spec:
+      serviceAccountName: {{ .Release.Name }}-cloudtty
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cloudtty
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/start.sh"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.basePath }}/api/health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.basePath }}/api/health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          projected:
+            defaultMode: 0755
+            sources:
+              - configMap:
+                  name: {{ .Release.Name }}-cloudtty-scripts
+              - configMap:
+                  name: {{ .Release.Name }}-cloudtty-extensions

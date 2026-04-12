@@ -1,5 +1,7 @@
 # Using the Web IDE (code-server)
 
+[< Back to docs](../README.md#documentation)
+
 ## Access
 
 ### Via port-forward (Kind)

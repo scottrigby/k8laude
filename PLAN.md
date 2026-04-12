@@ -1,52 +1,43 @@
-# k8laude: Claude Code on Kubernetes
+# Plan
 
-## Concept
+## Done
 
-k8laude packages Claude Code as a Kubernetes-native web application.
-One Helm release = one Claude workspace instance with all needed tools,
-UIs, and storage in a single namespace.
+- [x] Browser terminal via ttyd + Node.js proxy (kubectl exec into k8laude-0)
+- [x] Per-session notification routing (ttyd `--url-arg` + SSE scoping)
+- [x] Service Worker desktop notifications with correct tab targeting
+- [x] Notification channels: toast, desktop, sound, TTS (user-selectable checkboxes)
+- [x] Auth via `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`
+- [x] `hasCompletedOnboarding` auto-set/removed for OAuth token interactive mode
+- [x] Shared workspace PVC across Claude pod, cloudtty, and code-server
+- [x] CloudTTY as a Helm subchart (`cloudtty.enabled=false` by default)
+- [x] Custom Docker images: k8laude-cloudtty (ttyd + kubectl), k8laude-code-server (writable workbench)
+- [x] Configurable command (`cloudtty.command` helm value)
+- [x] code-server: hidden files, dark theme, clean UI, app-name branding
+- [x] Notification hooks with fixture-based add/remove (4 built-in hooks)
+- [x] Plugin management with fixture-based add/remove (askQuestions built-in)
+- [x] IDE banner injection (innerHeight override + cat-based HTML injection)
+- [x] Breadcrumb navigation across all pages (Home, Terminal, IDE)
+- [x] k8laude icon in all banners (K8s shield + Claude asterisk)
+- [x] Landing page: dark theme, configurable links, port 3000
+- [x] Shift+Enter keybinding for multi-line input (xterm.js CSI u injection)
+- [x] Basic auth for cloudtty (ttyd --credential)
+- [x] Branding: logos (asterisk + bot variants), icon/horizontal/stacked layouts
+- [x] GHCR image push (k8laude, k8laude-cloudtty, k8laude-code-server)
+- [x] CI: GH Action builds all three multi-arch images
+- [x] Traefik ingress routing for all services (tested on Kind with TLS)
+- [x] CMX deployment verified with Replicated image proxy
+- [x] Configmap checksum annotations for auto-restart on changes
+- [x] imagePullSecrets support for Replicated proxy
 
-## Architecture
+## To do
 
-```
-Browser (user)
-    ↓ HTTPS (Ingress)
-┌──────────────────────────────────────────────┐
-│  Namespace: k8laude                          │
-│                                              │
-│  ┌────────────────┐  ┌────────────────────┐  │
-│  │ code-server    │  │ Claude Code pod    │  │
-│  │ (web IDE)      │  │ ├─ claude container│  │
-│  │                │  │ └─ fluentbit sidecar│ │
-│  └───────┬────────┘  └────────┬───────────┘  │
-│          └────────┬───────────┘              │
-│              PVC: workspace                  │
-│                                              │
-│  Subcharts: PostgreSQL, code-server,         │
-│             Traefik, cert-manager            │
-└──────────────────────────────────────────────┘
-```
-
-## Subcharts
-
-| Chart | Purpose | BYO toggle |
-|-------|---------|------------|
-| PostgreSQL (Bitnami) | Debug log storage via Fluent Bit | `postgresql.enabled` |
-| code-server (Coder) | Web IDE at namespace.domain | `code-server.enabled` |
-| Traefik | Ingress + TLS termination | `traefik.enabled` |
-| cert-manager | Let's Encrypt DNS01 certs | `cert-manager.enabled` |
-
-## Key Decisions
-
-- **Standalone PVC** — `<release>-workspace`, shared by Claude + code-server
-- **Wildcard cert** — `*.k8laude.dev` covers namespace subdomains
-- **Traefik IngressRoute** — for wildcard subdomain routing
-- **CRDs pre-installed** — Helm subchart limitation, documented in setup
-- **No iptables** — K8s NetworkPolicies planned for network isolation
-
-## Follow-up
-
-- ReadWriteMany storage (NFS Ganesha) for multi-node PVC sharing
-- K8s NetworkPolicies for egress control
-- Voice mode (PulseAudio bridge or browser WebRTC)
-- Multi-agent: multiple Claude pods on shared workspace
+- [ ] Eliminate iframe: inject toolbar + SSE + SW directly into ttyd HTML ([detailed plan](docs/iframe-elimination.md))
+- [ ] Fix Shift+Enter newline when text is present (only works with empty input)
+- [ ] OAuth2 proxy for all web services (Traefik ForwardAuth + oauth2-proxy)
+- [ ] Helm chart tests (`helm test`) for hooks, plugins, auth, notifications
+- [ ] Voice mode via browser (getUserMedia → AudioWorklet → WebSocket → PulseAudio pipe source)
+- [ ] Investigate `claude --chrome` flag interaction with cloudtty
+- [ ] IDE banner injection (VS Code extensions can't inject into the workbench UI — options: fork Traefik rewritebody plugin with Content-Type fix, or proxy in front of code-server like ttyd)
+- [ ] ReadWriteMany storage for multi-node PVC sharing
+- [ ] K8s NetworkPolicies for egress control
+- [ ] Multi-agent: multiple Claude pods on shared workspace

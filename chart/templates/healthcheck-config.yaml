@@ -136,8 +136,9 @@ data:
         try {
           const updates = await sdkFetch('/api/v1/app/updates');
           if (updates && updates.length > 0) {
-            updateBanner = `<div style="background:#fef3c7;border:1px solid #f59e0b;padding:12px;border-radius:8px;margin-bottom:16px">
-              <strong>Update available:</strong> ${updates[0].versionLabel} — ${updates[0].releaseNotes || ''}</div>`;
+            const notes = (updates[0].releaseNotes || '').replace(/[^\x20-\x7E]/g, '');
+            updateBanner = `<div style="background:#fef3c7;border:1px solid #f59e0b;padding:12px;border-radius:8px;margin-bottom:16px;color:#92400e">
+              <strong>Update available:</strong> ${updates[0].versionLabel} - ${notes}</div>`;
           }
         } catch(e) {}
         try {

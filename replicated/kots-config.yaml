@@ -84,3 +84,45 @@ spec:
           default: k8laude
           when: '{{repl ConfigOptionEquals "db_type" "external" }}'
           help_text: "PostgreSQL database name."
+        - name: embedded_db_password
+          title: Embedded Database Password
+          type: password
+          hidden: true
+          default: '{{repl RandomString 24 }}'
+          when: '{{repl ConfigOptionEquals "db_type" "embedded" }}'
+          help_text: "Auto-generated password for embedded PostgreSQL. Persists across upgrades."
+    - name: features
+      title: Features
+      description: Enable or disable optional k8laude features.
+      items:
+        - name: cloudtty_enabled
+          title: Browser Terminal (CloudTTY)
+          type: bool
+          default: "1"
+          help_text: |
+            Enable the browser-based terminal for Claude Code access.
+            When disabled, users must use kubectl exec to access Claude Code.
+        - name: code_server_enabled
+          title: Web IDE (code-server)
+          type: bool
+          default: "1"
+          help_text: |
+            Enable the browser-based VS Code IDE for editing workspace files.
+            When disabled, users must use their own local IDE with kubectl port-forward.
+        - name: debug_logging_enabled
+          title: Debug Logging
+          type: bool
+          default: "1"
+          help_text: |
+            Enable Claude Code debug log collection via Fluent Bit sidecar.
+            Logs are stored in PostgreSQL for searchability.
+            Disable to reduce resource usage if debug logs are not needed.
+        - name: voice_mode_enabled
+          title: Voice Mode
+          type: bool
+          default: "0"
+          when: '{{repl LicenseFieldValue "voice_mode_enabled" }}'
+          help_text: |
+            Enable voice interaction with Claude Code.
+            This feature requires the voice_mode_enabled license entitlement.
+            Contact your account team to enable this on your license.

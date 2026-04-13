@@ -40,12 +40,22 @@ spec:
     # Database config
     postgresql:
       enabled: '{{repl ConfigOptionEquals "db_type" "embedded" }}'
+      auth:
+        password: '{{repl ConfigOption "embedded_db_password" }}'
     externalDatabase:
       host: '{{repl ConfigOption "external_db_host" }}'
       port: '{{repl ConfigOption "external_db_port" }}'
       username: '{{repl ConfigOption "external_db_username" }}'
       password: '{{repl ConfigOption "external_db_password" }}'
       database: '{{repl ConfigOption "external_db_name" }}'
+    # Feature toggles from KOTS config
+    cloudtty:
+      enabled: '{{repl ConfigOptionEquals "cloudtty_enabled" "1" }}'
+    code-server:
+      enabled: '{{repl ConfigOptionEquals "code_server_enabled" "1" }}'
+    claude:
+      debug:
+        enabled: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
 
   namespace: '{{repl Namespace }}'
   builder:

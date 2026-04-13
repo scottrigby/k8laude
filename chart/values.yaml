@@ -207,7 +207,7 @@ replicated:
   enabled: false
   nameOverride: k8laude-sdk
 
-# Ingress and TLS configuration (off by default per rubric 2.7)
+# Ingress and TLS configuration (off by default)
 ingress:
   enabled: false
   host: k8laude.local

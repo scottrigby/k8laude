@@ -9,7 +9,7 @@ metadata:
 data:
   healthcheck.js: |
     const http = require('http');
-    const { execSync } = require('child_process');
+    const { execSync, exec } = require('child_process');
     const fs = require('fs');
 
     // SDK API endpoint (in-cluster service)
@@ -78,7 +78,7 @@ data:
         }
 
       } else if (req.url === '/api/license') {
-        // License info from SDK (rubric 2.5, 2.6)
+        // License info from SDK
         try {
           const license = await sdkFetch('/api/v1/license/fields');
           res.writeHead(200);
@@ -89,7 +89,7 @@ data:
         }
 
       } else if (req.url === '/api/updates') {
-        // Update check from SDK (rubric 2.6)
+        // Update check from SDK
         try {
           const updates = await sdkFetch('/api/v1/app/updates');
           res.writeHead(200);
@@ -100,7 +100,7 @@ data:
         }
 
       } else if (req.url === '/api/license/validate') {
-        // License validity check (rubric 2.6)
+        // License validity check
         try {
           const info = await sdkFetch('/api/v1/license/info');
           const isValid = info && !info.isExpired;
@@ -116,7 +116,7 @@ data:
         }
 
       } else if (req.url === '/api/feature/voice') {
-        // Feature gate check via SDK (rubric 2.5)
+        // Feature gate check via SDK
         try {
           const fields = await sdkFetch('/api/v1/license/fields');
           const v = fields && fields.voice_mode_enabled && fields.voice_mode_enabled.value;
@@ -127,6 +127,76 @@ data:
           res.writeHead(200);
           res.end(JSON.stringify({ voice_mode_enabled: false, reason: 'SDK not available' }));
         }
+
+      {{- if .Values.replicated.enabled }}
+      } else if (req.url === '/api/support-bundle' && req.method === 'POST') {
+        // Generate support bundle and upload to Vendor Portal via SDK
+        // Uses async exec (not execSync) so the event loop stays unblocked —
+        // the support-bundle collector makes an HTTP health check back to this server.
+        res.setHeader('Content-Type', 'application/json');
+        const bundlePath = '/tmp/support-bundle-' + Date.now() + '.tar.gz';
+        try {
+          await new Promise((resolve, reject) => {
+            exec(
+              'support-bundle --load-cluster-specs --output=' + bundlePath + ' --interactive=false',
+              { timeout: 180000, maxBuffer: 10 * 1024 * 1024 },
+              (err) => err ? reject(err) : resolve()
+            );
+          });
+          // Parse analyzer results summary using jq on the bundle's analysis.json
+          var summary = { pass: 0, warn: 0, fail: 0 };
+          try {
+            var analysisPath = execSync(
+              'tar tf ' + bundlePath + ' | grep analysis.json',
+              { timeout: 5000, encoding: 'utf8' }
+            ).trim();
+            var analysisJson = execSync(
+              'tar xzf ' + bundlePath + ' -O "' + analysisPath + '"',
+              { timeout: 5000, encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 }
+            );
+            var analysis = JSON.parse(analysisJson);
+            if (Array.isArray(analysis)) {
+              analysis.forEach(function(r) {
+                if (r.severity === 'error') summary.fail++;
+                else if (r.severity === 'warn') summary.warn++;
+                else summary.pass++;
+              });
+            }
+          } catch(e) { /* best effort — summary stays at zeros */ }
+          const bundleData = fs.readFileSync(bundlePath);
+          const uploadResult = await new Promise((resolve, reject) => {
+            const uploadReq = http.request({
+              hostname: SDK_HOST, port: SDK_PORT,
+              path: '/api/v1/supportbundle', method: 'POST',
+              headers: { 'Content-Type': 'application/gzip', 'Content-Length': bundleData.length }
+            }, (uploadRes) => {
+              let data = '';
+              uploadRes.on('data', (chunk) => data += chunk);
+              uploadRes.on('end', () => resolve({ status: uploadRes.statusCode, body: data }));
+            });
+            uploadReq.on('error', reject);
+            uploadReq.write(bundleData);
+            uploadReq.end();
+          });
+          try { fs.unlinkSync(bundlePath); } catch(e) {}
+          if (uploadResult.status === 201) {
+            var parts = [];
+            if (summary.pass) parts.push(summary.pass + ' passed');
+            if (summary.warn) parts.push(summary.warn + ' warning' + (summary.warn > 1 ? 's' : ''));
+            if (summary.fail) parts.push(summary.fail + ' error' + (summary.fail > 1 ? 's' : ''));
+            var msg = 'Uploaded to Vendor Portal' + (parts.length ? ' (' + parts.join(', ') + ')' : '');
+            res.writeHead(200);
+            res.end(JSON.stringify({ success: true, message: msg, summary: summary }));
+          } else {
+            res.writeHead(502);
+            res.end(JSON.stringify({ success: false, message: 'Upload failed', sdkStatus: uploadResult.status, body: uploadResult.body }));
+          }
+        } catch (e) {
+          try { fs.unlinkSync(bundlePath); } catch(ignore) {}
+          res.writeHead(500);
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      {{- end }}
 
       } else if (req.url === '/') {
         // Landing page with status, update banner, and links
@@ -152,15 +222,42 @@ data:
         res.writeHead(200);
         res.end(`<!DOCTYPE html><html><head><title>k8laude</title>
           <style>body{font-family:system-ui;margin:0;padding:0;color:#c0caf5;background:#1a1b26}
-          .banner{background:#24283b;padding:0 16px;height:35px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #3b4261}
+          .banner{background:#24283b;padding:0 16px;height:35px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #3b4261;box-sizing:content-box}
           .banner h1{font-size:14px;font-weight:600;color:#c0caf5;margin:0}
           .content{max-width:600px;margin:24px auto;padding:0 20px}
           a{color:#7aa2f7}code{background:#24283b;padding:2px 6px;border-radius:4px;font-size:13px;color:#c0caf5}
           .card{border:1px solid #3b4261;border-radius:8px;padding:16px;margin:12px 0}
           table{width:100%;border-collapse:collapse}td{padding:8px;border-bottom:1px solid #3b4261}
+          .notif-options{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:#565f89}
+          .notif-options label{cursor:pointer;padding:2px 4px;border-radius:3px}
+          .notif-options label.checked{color:#c0caf5}
+          .notif-options input{margin-right:2px;vertical-align:middle}
+          .notif-toggle{background:none;border:1px solid #3b4261;color:#565f89;font-size:10px;padding:1px 6px;border-radius:3px;cursor:pointer}
+          .toast-container{position:fixed;top:44px;right:12px;z-index:999;display:flex;flex-direction:column;gap:8px}
+          .toast{background:#24283b;border:1px solid #3b4261;border-radius:8px;padding:10px 14px;min-width:240px;max-width:360px;animation:fadeIn .2s}
+          .toast-header{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px}
+          .toast-close{margin-left:auto;cursor:pointer;color:#565f89;font-size:16px}
+          .toast-time{color:#565f89}
+          .type-badge{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+          .type-complete{background:#9ece6a22;color:#9ece6a}.type-info{background:#7aa2f722;color:#7aa2f7}
+          .type-error{background:#f7768e22;color:#f7768e}
+          @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
           </style></head>
           <body>
-          <div class="banner"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-0.17%200.08%20230.10%20223.35%22%3E%0A%20%20%3Ctitle%3Ek8laude%20icon%20%E2%80%94%20asterisk%3C%2Ftitle%3E%0A%20%20%3Cpath%20d%3D%22M225.407%20135.107L206.4%2052.547a14.838%2014.838%200%200%200-7.958-9.9l-76.935-36.73a14.825%2014.825%200%200%200-12.771%200L31.808%2042.669a14.838%2014.838%200%200%200-7.961%209.895L4.873%20135.129a14.668%2014.668%200%200%200%201.995%2011.185c.261.4.538.788.838%201.162l53.246%2066.205a14.98%2014.98%200%200%200%2011.499%205.487l85.387-.02a14.986%2014.986%200%200%200%2011.5-5.48l53.227-66.211a14.72%2014.72%200%200%200%202.842-12.347z%22%20fill%3D%22%23D97757%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M216.208%20133.167l-17.422-75.675a13.602%2013.602%200%200%200-7.293-9.073l-70.521-33.67a13.589%2013.589%200%200%200-11.705%200L38.76%2048.437a13.598%2013.598%200%200%200-7.295%209.072l-17.394%2075.673a13.315%2013.315%200%200%200-.004%205.81%2013.506%2013.506%200%200%200%20.491%201.718%2013.1%2013.1%200%200%200%201.343%202.726c.239.365.491.72.765%201.064l48.804%2060.678c.213.264.448.505.681.75a13.423%2013.423%200%200%200%202.574%202.133%2013.924%2013.924%200%200%200%203.857%201.677%2013.298%2013.298%200%200%200%203.43.473h.759l77.504-.018a12.993%2012.993%200%200%200%201.41-.083%2013.47%2013.47%200%200%200%201.989-.378%2013.872%2013.872%200%200%200%201.381-.442c.353-.135.705-.27%201.045-.433a13.941%2013.941%200%200%200%201.479-.822%2013.303%2013.303%200%200%200%203.237-2.865l1.488-1.85%2047.299-58.84a13.185%2013.185%200%200%200%202.108-3.785%2013.67%2013.67%200%200%200%20.5-1.724%2013.282%2013.282%200%200%200-.004-5.81z%22%20fill%3D%22white%22%2F%3E%0A%20%20%3Cg%20transform%3D%22translate%28115%2C%20118%29%20scale%285.25%29%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M4.709%2015.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0%2011.784l.055-.352.48-.321.686.06%201.52.103%202.278.158%201.652.097%202.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686%201.908%201.476%202.491%201.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97%202.97%200%2001-.104-.729L6.283.134%206.696%200l.996.134.42.364.62%201.414%201.002%202.229%201.555%203.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286%201.851-.559%202.903-.364%201.942h.212l.243-.242.985-1.306%201.652-2.064.73-.82.85-.904.547-.431h1.033l.76%201.129-.34%201.166-1.064%201.347-.881%201.142-1.264%201.7-.79%201.36.073.11.188-.02%202.856-.606%201.543-.28%201.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061%201.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093%201.068%202.006%201.81%202.509%202.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649%202.345%203.521.122%201.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674%207.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434%201.967-2.18%202.945-1.726%201.845-.414.164-.717-.37.067-.662.401-.589%202.388-3.036%201.44-1.882.93-1.086-.006-.158h-.055L4.132%2018.56l-1.13.146-.487-.456.061-.746.231-.243%201.908-1.312-.006.006z%22%20fill%3D%22%23D97757%22%20fill-rule%3D%22nonzero%22%20transform%3D%22translate%28-12%2C-12%29%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E" alt="" style="width:20px;height:20px;vertical-align:middle"><span style="font-size:14px;font-weight:600;color:#c0caf5">k8laude</span><span style="color:#565f89;font-size:12px">&gt;</span><span style="font-size:12px;color:#c0caf5">Home</span></div>
+          <div class="banner"><img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-0.17%200.08%20230.10%20223.35%22%3E%0A%20%20%3Ctitle%3Ek8laude%20icon%20%E2%80%94%20asterisk%3C%2Ftitle%3E%0A%20%20%3Cpath%20d%3D%22M225.407%20135.107L206.4%2052.547a14.838%2014.838%200%200%200-7.958-9.9l-76.935-36.73a14.825%2014.825%200%200%200-12.771%200L31.808%2042.669a14.838%2014.838%200%200%200-7.961%209.895L4.873%20135.129a14.668%2014.668%200%200%200%201.995%2011.185c.261.4.538.788.838%201.162l53.246%2066.205a14.98%2014.98%200%200%200%2011.499%205.487l85.387-.02a14.986%2014.986%200%200%200%2011.5-5.48l53.227-66.211a14.72%2014.72%200%200%200%202.842-12.347z%22%20fill%3D%22%23D97757%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M216.208%20133.167l-17.422-75.675a13.602%2013.602%200%200%200-7.293-9.073l-70.521-33.67a13.589%2013.589%200%200%200-11.705%200L38.76%2048.437a13.598%2013.598%200%200%200-7.295%209.072l-17.394%2075.673a13.315%2013.315%200%200%200-.004%205.81%2013.506%2013.506%200%200%200%20.491%201.718%2013.1%2013.1%200%200%200%201.343%202.726c.239.365.491.72.765%201.064l48.804%2060.678c.213.264.448.505.681.75a13.423%2013.423%200%200%200%202.574%202.133%2013.924%2013.924%200%200%200%203.857%201.677%2013.298%2013.298%200%200%200%203.43.473h.759l77.504-.018a12.993%2012.993%200%200%200%201.41-.083%2013.47%2013.47%200%200%200%201.989-.378%2013.872%2013.872%200%200%200%201.381-.442c.353-.135.705-.27%201.045-.433a13.941%2013.941%200%200%200%201.479-.822%2013.303%2013.303%200%200%200%203.237-2.865l1.488-1.85%2047.299-58.84a13.185%2013.185%200%200%200%202.108-3.785%2013.67%2013.67%200%200%200%20.5-1.724%2013.282%2013.282%200%200%200-.004-5.81z%22%20fill%3D%22white%22%2F%3E%0A%20%20%3Cg%20transform%3D%22translate%28115%2C%20118%29%20scale%285.25%29%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M4.709%2015.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0%2011.784l.055-.352.48-.321.686.06%201.52.103%202.278.158%201.652.097%202.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686%201.908%201.476%202.491%201.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97%202.97%200%2001-.104-.729L6.283.134%206.696%200l.996.134.42.364.62%201.414%201.002%202.229%201.555%203.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286%201.851-.559%202.903-.364%201.942h.212l.243-.242.985-1.306%201.652-2.064.73-.82.85-.904.547-.431h1.033l.76%201.129-.34%201.166-1.064%201.347-.881%201.142-1.264%201.7-.79%201.36.073.11.188-.02%202.856-.606%201.543-.28%201.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061%201.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093%201.068%202.006%201.81%202.509%202.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649%202.345%203.521.122%201.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674%207.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434%201.967-2.18%202.945-1.726%201.845-.414.164-.717-.37.067-.662.401-.589%202.388-3.036%201.44-1.882.93-1.086-.006-.158h-.055L4.132%2018.56l-1.13.146-.487-.456.061-.746.231-.243%201.908-1.312-.006.006z%22%20fill%3D%22%23D97757%22%20fill-rule%3D%22nonzero%22%20transform%3D%22translate%28-12%2C-12%29%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E" alt="" style="width:20px;height:20px;vertical-align:middle"><span style="font-size:14px;font-weight:600;color:#c0caf5">k8laude</span><span style="color:#565f89;font-size:12px">&gt;</span><span style="font-size:12px;color:#c0caf5">Home</span>
+          {{- if .Values.replicated.enabled }}
+          <div class="notif-options">
+            <button class="notif-toggle" id="toggle-all" onclick="toggleAll()">all</button>
+            <label id="lbl-toast"><input type="checkbox" id="chk-toast" onchange="savePrefs()"> Toast</label>
+            <label id="lbl-desktop"><input type="checkbox" id="chk-desktop" onchange="onDesktopChange()"> Desktop</label>
+            <label id="lbl-sound"><input type="checkbox" id="chk-sound" onchange="savePrefs()"> Sound</label>
+            <label id="lbl-tts"><input type="checkbox" id="chk-tts" onchange="savePrefs()"> TTS</label>
+          </div>
+          {{- end }}
+          </div>
+          {{- if .Values.replicated.enabled }}
+          <div class="toast-container" id="toasts"></div>
+          {{- end }}
           <div class="content">
           <p style="color:#565f89;margin-top:16px">Claude Code on Kubernetes</p>
           ${updateBanner}${licenseStatus}
@@ -188,8 +285,175 @@ data:
             {{- end }}
           {{- end }}
           </div>
+          {{- if .Values.replicated.enabled }}
+          <div class="card">
+            <strong>Support Bundle</strong><br>
+            <p style="margin:4px 0 8px;color:#565f89">Collect diagnostics and upload to Vendor Portal</p>
+            <button id="sb-btn" onclick="generateSupportBundle()" style="background:#7aa2f7;color:#1a1b26;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px">Generate Support Bundle</button>
+            <span id="sb-status" style="margin-left:8px;font-size:12px"></span>
+          </div>
+          <script>
+          // -- Service Worker registration --
+          var swReg = null;
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+              .then(function(r) { swReg = r; })
+              .catch(function(e) { console.error('SW registration failed:', e); });
+          }
+
+          // -- Notification preferences --
+          var PREF_KEY = 'k8laude-notif-prefs';
+          var prefs = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+          if (prefs.toast === undefined) prefs.toast = true;
+          if (prefs.desktop === undefined) prefs.desktop = false;
+          if (prefs.sound === undefined) prefs.sound = false;
+          if (prefs.tts === undefined) prefs.tts = false;
+
+          function loadPrefs() {
+            document.getElementById('chk-toast').checked = prefs.toast;
+            document.getElementById('chk-desktop').checked = prefs.desktop;
+            document.getElementById('chk-sound').checked = prefs.sound;
+            document.getElementById('chk-tts').checked = prefs.tts;
+            updateLabels();
+          }
+          function savePrefs() {
+            prefs.toast = document.getElementById('chk-toast').checked;
+            prefs.desktop = document.getElementById('chk-desktop').checked;
+            prefs.sound = document.getElementById('chk-sound').checked;
+            prefs.tts = document.getElementById('chk-tts').checked;
+            localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+            updateLabels();
+          }
+          function updateLabels() {
+            ['toast','desktop','sound','tts'].forEach(function(k) {
+              document.getElementById('lbl-' + k).classList.toggle('checked', prefs[k]);
+            });
+            var allOff = !prefs.toast && !prefs.desktop && !prefs.sound && !prefs.tts;
+            document.getElementById('toggle-all').textContent = allOff ? 'all on' : 'all off';
+          }
+          function toggleAll() {
+            var allOff = !prefs.toast && !prefs.desktop && !prefs.sound && !prefs.tts;
+            prefs.toast = allOff; prefs.desktop = allOff; prefs.sound = allOff; prefs.tts = allOff;
+            if (allOff && Notification.permission !== 'granted') Notification.requestPermission();
+            localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+            loadPrefs();
+          }
+          function onDesktopChange() {
+            if (document.getElementById('chk-desktop').checked && Notification.permission !== 'granted') {
+              Notification.requestPermission().then(function(p) {
+                if (p !== 'granted') document.getElementById('chk-desktop').checked = false;
+                savePrefs();
+              });
+            } else { savePrefs(); }
+          }
+          loadPrefs();
+
+          // -- Audio chime --
+          var audioCtx = null;
+          function playChime() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            [440, 660].forEach(function(freq, i) {
+              var osc = audioCtx.createOscillator();
+              var gain = audioCtx.createGain();
+              osc.type = 'sine'; osc.frequency.value = freq;
+              gain.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.15);
+              gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.15 + 0.3);
+              osc.connect(gain); gain.connect(audioCtx.destination);
+              osc.start(audioCtx.currentTime + i * 0.15);
+              osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
+            });
+          }
+
+          // -- TTS --
+          function speak(text) {
+            if (!('speechSynthesis' in window)) return;
+            var u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.1; u.pitch = 1.0; u.volume = 0.8;
+            speechSynthesis.speak(u);
+          }
+
+          // -- Toast --
+          function showToast(data) {
+            var c = document.getElementById('toasts');
+            var t = document.createElement('div'); t.className = 'toast';
+            var type = data.type || 'info';
+            var time = new Date().toLocaleTimeString();
+            t.innerHTML = '<div class="toast-header"><span class="type-badge type-' + type + '">' + type + '</span><span class="toast-time">' + time + '</span><span class="toast-close" onclick="this.parentNode.parentNode.remove()">&times;</span></div><div>' + (data.message || '') + '</div>';
+            c.appendChild(t);
+            setTimeout(function() { if (t.parentNode) t.remove(); }, 8000);
+          }
+
+          // -- Notify --
+          function notify(data) {
+            if (prefs.toast) showToast(data);
+            if (prefs.desktop && Notification.permission === 'granted') {
+              if (swReg && swReg.active) {
+                swReg.active.postMessage({ type: 'show-notification', notification: data });
+              } else {
+                var n = new Notification('k8laude', { body: data.message || '', tag: 'k8laude-' + Date.now() });
+                n.onclick = function() { window.focus(); n.close(); };
+              }
+            }
+            if (prefs.sound) playChime();
+            if (prefs.tts) {
+              var delay = prefs.sound ? 500 : 0;
+              setTimeout(function() { speak(data.message || ''); }, delay);
+            }
+          }
+
+          // -- Support bundle --
+          async function generateSupportBundle() {
+            var btn = document.getElementById('sb-btn');
+            var status = document.getElementById('sb-status');
+            btn.disabled = true; btn.textContent = 'Generating...';
+            status.textContent = 'This may take a minute...'; status.style.color = '#565f89';
+            try {
+              var resp = await fetch('/api/support-bundle', { method: 'POST' });
+              var data = await resp.json();
+              if (data.success) {
+                status.textContent = data.message || 'Uploaded to Vendor Portal'; status.style.color = '#9ece6a';
+                notify({ type: 'complete', message: data.message || 'Support bundle uploaded to Vendor Portal' });
+              } else {
+                status.textContent = data.message || data.error; status.style.color = '#f7768e';
+                notify({ type: 'error', message: 'Support bundle failed: ' + (data.message || data.error) });
+              }
+            } catch(e) {
+              status.textContent = 'Error: ' + e.message; status.style.color = '#f7768e';
+              notify({ type: 'error', message: 'Support bundle error: ' + e.message });
+            }
+            btn.disabled = false; btn.textContent = 'Generate Support Bundle';
+          }
+          </script>
+          {{- end }}
           </div>
           </body></html>`);
+
+      } else if (req.url === '/sw.js') {
+        // Service Worker for desktop notifications
+        res.setHeader('Content-Type', 'application/javascript');
+        res.setHeader('Service-Worker-Allowed', '/');
+        res.writeHead(200);
+        res.end(`
+          self.addEventListener('message', (event) => {
+            if (event.data.type === 'show-notification') {
+              var n = event.data.notification;
+              self.registration.showNotification('k8laude' + (n.type ? ' (' + n.type + ')' : ''), {
+                body: n.message || '',
+                tag: 'k8laude-' + Date.now(),
+                data: { url: '/' }
+              });
+            }
+          });
+          self.addEventListener('notificationclick', (event) => {
+            event.notification.close();
+            event.waitUntil(
+              clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+                for (var c of list) { if ('focus' in c) return c.focus(); }
+                return clients.openWindow('/');
+              })
+            );
+          });
+        `);
 
       } else {
         res.writeHead(404);

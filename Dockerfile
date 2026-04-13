@@ -43,6 +43,13 @@ RUN mkdir -p /workspace /home/node/.claude && \
 
 WORKDIR /workspace
 
+# Install kubectl and support-bundle plugin (for support bundle generation via UI)
+RUN ARCH=$(dpkg --print-architecture) && \
+  curl -fsSL "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
+    -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl && \
+  curl -fsSL "https://github.com/replicatedhq/troubleshoot/releases/latest/download/support-bundle_linux_${ARCH}.tar.gz" \
+    | tar xzf - -C /usr/local/bin support-bundle && chmod +x /usr/local/bin/support-bundle
+
 # Set up non-root user
 USER node
 

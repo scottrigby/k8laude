@@ -1,0 +1,90 @@
+apiVersion: troubleshoot.sh/v1beta2
+kind: Preflight
+metadata:
+  name: k8laude-preflight
+spec:
+  collectors:
+    - clusterInfo: {}
+    - clusterResources: {}
+    - http:
+        collectorName: anthropic-api-check
+        get:
+          url: https://api.anthropic.com/v1/messages
+          timeout: 10s
+          headers:
+            accept: application/json
+  analyzers:
+    # Anthropic API endpoint connectivity
+    - textAnalyze:
+        checkName: Anthropic API endpoint connectivity
+        fileName: anthropic-api-check.json
+        regex: '"status":\s*-1'
+        outcomes:
+          - fail:
+              when: "true"
+              message: |
+                Cannot reach the Anthropic API at api.anthropic.com.
+                Claude Code requires outbound HTTPS (port 443) to api.anthropic.com.
+                Verify DNS resolution, firewall rules, and proxy settings.
+          - pass:
+              when: "false"
+              message: Anthropic API endpoint is reachable.
+    # Cluster CPU capacity
+    - nodeResources:
+        checkName: Cluster CPU capacity
+        outcomes:
+          - fail:
+              when: "sum(cpuCapacity) < 2"
+              message: "k8laude requires at least 2 CPU cores. Add nodes or use larger instances."
+          - warn:
+              when: "sum(cpuCapacity) < 4"
+              message: "4+ CPU cores recommended for comfortable operation."
+          - pass:
+              message: Sufficient CPU resources available.
+    # Cluster memory capacity
+    - nodeResources:
+        checkName: Cluster memory capacity
+        outcomes:
+          - fail:
+              when: "sum(memoryCapacity) < 4Gi"
+              message: "k8laude requires at least 4 GiB memory. Add nodes or use larger instances."
+          - warn:
+              when: "sum(memoryCapacity) < 8Gi"
+              message: "8+ GiB memory recommended for all components."
+          - pass:
+              message: Sufficient memory resources available.
+    # Kubernetes version check
+    - clusterVersion:
+        outcomes:
+          - fail:
+              when: "< 1.26.0"
+              message: "k8laude requires Kubernetes 1.26.0 or later."
+              uri: https://kubernetes.io/releases/
+          - warn:
+              when: "< 1.28.0"
+              message: "Kubernetes 1.28.0+ recommended."
+          - pass:
+              when: ">= 1.28.0"
+              message: Kubernetes version is supported.
+    # Distribution check
+    - distribution:
+        outcomes:
+          - fail:
+              when: "== docker-desktop"
+              message: "Docker Desktop is not supported. Use kind, k3s, EKS, GKE, AKS, or k0s. See: https://kubernetes.io/docs/setup/production-environment/"
+          - fail:
+              when: "== microk8s"
+              message: "MicroK8s is not supported. Use kind, k3s, EKS, GKE, AKS, or k0s. See: https://kubernetes.io/docs/setup/production-environment/"
+          - warn:
+              when: "== minikube"
+              message: Minikube detected. Suitable for development only.
+          - pass:
+              message: Kubernetes distribution is suitable.
+    # Storage class
+    - storageClass:
+        checkName: Default storage class available
+        outcomes:
+          - fail:
+              message: "No default storage class found. Required for workspace PVC and PostgreSQL."
+          - pass:
+              message: Default storage class is available.

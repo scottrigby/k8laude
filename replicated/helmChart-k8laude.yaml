@@ -23,6 +23,29 @@ spec:
     fluentbit:
       image:
         repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "docker.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "fluent" }}/fluent-bit'
+    code-server:
+      image:
+        repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "ghcr.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "scottrigby" }}/k8laude-code-server'
+    # Disable ingress stack for embedded cluster (single-node, Admin Console handles access)
+    ingress:
+      enabled: false
+    cert-manager:
+      enabled: false
+    traefik:
+      enabled: false
+    # Auth from KOTS config
+    claude:
+      oauthToken: '{{repl ConfigOption "oauth_token" }}'
+      apiKey: '{{repl ConfigOption "api_key" }}'
+    # Database config
+    postgresql:
+      enabled: '{{repl ConfigOptionEquals "db_type" "embedded" }}'
+    externalDatabase:
+      host: '{{repl ConfigOption "external_db_host" }}'
+      port: '{{repl ConfigOption "external_db_port" }}'
+      username: '{{repl ConfigOption "external_db_username" }}'
+      password: '{{repl ConfigOption "external_db_password" }}'
+      database: '{{repl ConfigOption "external_db_name" }}'
 
   namespace: '{{repl Namespace }}'
   builder:

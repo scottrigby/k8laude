@@ -5,7 +5,7 @@ metadata:
   name: k8laude
 spec:
   title: k8laude
-  icon: https://raw.githubusercontent.com/scottrigby/k8laude/main/icon.png
+  icon: https://raw.githubusercontent.com/scottrigby/k8laude/main/branding/asterisk/k8laude-icon-color.svg
   allowRollback: true
   statusInformers:
     - k8laude/statefulset/k8laude

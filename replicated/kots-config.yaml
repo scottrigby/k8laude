@@ -1,0 +1,86 @@
+apiVersion: kots.io/v1beta1
+kind: Config
+metadata:
+  name: k8laude-config
+spec:
+  groups:
+    - name: authentication
+      title: Authentication
+      description: Configure how Claude Code authenticates with Anthropic.
+      items:
+        - name: auth_method
+          title: Authentication Method
+          type: select_one
+          default: oauth
+          items:
+            - name: oauth
+              title: OAuth Token (Subscription)
+            - name: apikey
+              title: API Key (Console)
+          help_text: |
+            OAuth Token requires a Claude Pro/Max/Team/Enterprise subscription.
+            Generate with: claude setup-token
+            API Key uses Anthropic Console billing.
+            Get one at: console.anthropic.com/settings/keys
+        - name: oauth_token
+          title: OAuth Token
+          type: password
+          when: '{{repl ConfigOptionEquals "auth_method" "oauth" }}'
+          help_text: |
+            Long-lived OAuth token from Claude Code subscription.
+            Generate once with 'claude setup-token' and paste here.
+        - name: api_key
+          title: Anthropic API Key
+          type: password
+          when: '{{repl ConfigOptionEquals "auth_method" "apikey" }}'
+          help_text: |
+            API key from console.anthropic.com/settings/keys.
+            Billed per-token via Anthropic Console.
+    - name: database
+      title: Database
+      description: Configure PostgreSQL for debug log storage.
+      items:
+        - name: db_type
+          title: Database Type
+          type: select_one
+          default: embedded
+          items:
+            - name: embedded
+              title: Embedded PostgreSQL
+            - name: external
+              title: External PostgreSQL
+          help_text: |
+            Embedded: PostgreSQL runs inside the cluster (recommended for single-node).
+            External: Connect to an existing PostgreSQL server.
+        - name: external_db_host
+          title: Host
+          type: text
+          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          help_text: "Hostname or IP of the external PostgreSQL server."
+          validation:
+            regex:
+              pattern: "^[a-zA-Z0-9][a-zA-Z0-9.-]+$"
+              message: "Must be a valid hostname (letters, numbers, dots, hyphens)."
+        - name: external_db_port
+          title: Port
+          type: text
+          default: "5432"
+          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          help_text: "PostgreSQL port (default: 5432)."
+        - name: external_db_username
+          title: Username
+          type: text
+          default: k8laude
+          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          help_text: "PostgreSQL username for k8laude."
+        - name: external_db_password
+          title: Password
+          type: password
+          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          help_text: "PostgreSQL password."
+        - name: external_db_name
+          title: Database Name
+          type: text
+          default: k8laude
+          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          help_text: "PostgreSQL database name."

@@ -38,13 +38,20 @@ spec:
             Billed per-token via Anthropic Console.
     - name: database
       title: Database
-      description: Configure PostgreSQL for debug log storage.
-      when: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
+      description: PostgreSQL database for k8laude data storage (debug logs, future features).
       items:
+        - name: postgresql_enabled
+          title: Enable PostgreSQL
+          type: bool
+          default: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
+          help_text: |
+            Deploy a PostgreSQL database for k8laude. Required when debug logging
+            is enabled. Can also be enabled independently for other data storage needs.
         - name: db_type
           title: Database Type
           type: select_one
           default: embedded
+          when: '{{repl ConfigOptionEquals "postgresql_enabled" "1" }}'
           items:
             - name: embedded
               title: Embedded PostgreSQL
@@ -56,7 +63,7 @@ spec:
         - name: external_db_host
           title: Host
           type: text
-          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "external") }}'
           help_text: "Hostname or IP of the external PostgreSQL server."
           validation:
             regex:
@@ -66,31 +73,31 @@ spec:
           title: Port
           type: text
           default: "5432"
-          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "external") }}'
           help_text: "PostgreSQL port (default: 5432)."
         - name: external_db_username
           title: Username
           type: text
           default: k8laude
-          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "external") }}'
           help_text: "PostgreSQL username for k8laude."
         - name: external_db_password
           title: Password
           type: password
-          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "external") }}'
           help_text: "PostgreSQL password."
         - name: external_db_name
           title: Database Name
           type: text
           default: k8laude
-          when: '{{repl ConfigOptionEquals "db_type" "external" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "external") }}'
           help_text: "PostgreSQL database name."
         - name: embedded_db_password
           title: Embedded Database Password
           type: password
           hidden: true
           default: '{{repl RandomString 24 }}'
-          when: '{{repl ConfigOptionEquals "db_type" "embedded" }}'
+          when: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "embedded") }}'
           help_text: "Auto-generated password for embedded PostgreSQL. Persists across upgrades."
     - name: features
       title: Features
@@ -137,8 +144,8 @@ spec:
             Enable Claude Code debug log collection. When enabled, Claude runs with
             --debug --verbose flags, a Fluent Bit sidecar ships logs to PostgreSQL,
             and the Database section above configures storage.
-            When disabled, no debug logs are collected, PostgreSQL is not deployed
-            (if embedded), and the Fluent Bit sidecar is not created.
+            When disabled, no debug logs are collected and the Fluent Bit sidecar
+            is not created. PostgreSQL can still be enabled independently above.
         - name: voice_mode_enabled
           title: Voice Mode
           type: bool

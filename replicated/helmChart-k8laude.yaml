@@ -38,7 +38,7 @@ spec:
         enabled: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
     # Database config
     postgresql:
-      enabled: '{{repl and (ConfigOptionEquals "debug_logging_enabled" "1") (ConfigOptionEquals "db_type" "embedded") }}'
+      enabled: '{{repl and (ConfigOptionEquals "postgresql_enabled" "1") (ConfigOptionEquals "db_type" "embedded") }}'
       auth:
         password: '{{repl ConfigOption "embedded_db_password" }}'
     externalDatabase:

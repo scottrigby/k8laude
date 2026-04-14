@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +100,20 @@ jobs:
           tags: |
             ghcr.io/${{github.repository}}-code-server:${{steps.version.outputs.version}}
             ghcr.io/${{github.repository}}-code-server:latest
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign images with cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          for img in \
+            ghcr.io/${{github.repository}}:${{steps.version.outputs.version}} \
+            ghcr.io/${{github.repository}}-cloudtty:${{steps.version.outputs.version}} \
+            ghcr.io/${{github.repository}}-code-server:${{steps.version.outputs.version}}; do
+            cosign sign --yes "$img"
+          done
 
       - name: Set up Helm
         uses: azure/setup-helm@v4

@@ -17,16 +17,16 @@ spec:
       enabled: true
       nameOverride: k8laude-sdk
     image:
-      repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude") "images.k8laude.dev/proxy/k8laude/ghcr.io/scottrigby/k8laude" }}'
+      repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude") "proxy.replicated.com/proxy/k8laude/ghcr.io/scottrigby/k8laude" }}'
       pullPolicy: Always
     imagePullSecrets:
       - name: '{{repl ImagePullSecretName }}'
     fluentbit:
       image:
-        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/fluent-bit") "images.k8laude.dev/proxy/k8laude/docker.io/fluent/fluent-bit" }}'
+        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/fluent-bit") "proxy.replicated.com/proxy/k8laude/docker.io/fluent/fluent-bit" }}'
     postgresql:
       image:
-        registry: '{{repl HasLocalRegistry | ternary LocalRegistryHost "images.k8laude.dev" }}'
+        registry: '{{repl HasLocalRegistry | ternary LocalRegistryHost "proxy.replicated.com" }}'
         repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryNamespace "/bitnamilegacy/postgresql") "proxy/k8laude/docker.io/bitnamilegacy/postgresql" }}'
     global:
       security:
@@ -50,12 +50,12 @@ spec:
       auth:
         password: '{{repl ConfigOption "cloudtty_auth_password" }}'
       image:
-        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude-cloudtty") "images.k8laude.dev/proxy/k8laude/ghcr.io/scottrigby/k8laude-cloudtty" }}'
+        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude-cloudtty") "proxy.replicated.com/proxy/k8laude/ghcr.io/scottrigby/k8laude-cloudtty" }}'
         pullPolicy: Always
     code-server:
       password: '{{repl ConfigOption "code_server_password" }}'
       image:
-        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude-code-server") "images.k8laude.dev/proxy/k8laude/ghcr.io/scottrigby/k8laude-code-server" }}'
+        repository: '{{repl HasLocalRegistry | ternary (print LocalRegistryHost "/" LocalRegistryNamespace "/k8laude-code-server") "proxy.replicated.com/proxy/k8laude/ghcr.io/scottrigby/k8laude-code-server" }}'
         pullPolicy: Always
 
   # Use optionalValues for boolean toggles — avoids non-bool string issues

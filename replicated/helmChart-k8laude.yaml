@@ -29,8 +29,8 @@ spec:
         tag: "3.2"
     postgresql:
       image:
-        registry: '{{repl ReplicatedImageRegistry "docker.io" }}'
-        repository: '{{repl ReplicatedImageRepository "bitnamilegacy/postgresql" }}'
+        registry: '{{repl ReplicatedImageRegistry "docker.io" true }}'
+        repository: '{{repl ReplicatedImageRepository "bitnamilegacy/postgresql" true }}'
     global:
       security:
         allowInsecureImages: true

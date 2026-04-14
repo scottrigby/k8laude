@@ -17,14 +17,16 @@ spec:
       enabled: true
       nameOverride: k8laude-sdk
     image:
-      repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude:latest" }}'
+      repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude" }}'
+      tag: latest
       pullPolicy: Always
     imagePullSecrets:
       - name: '{{repl ImagePullSecretName }}'
       - name: enterprise-pull-secret
     fluentbit:
       image:
-        repository: '{{repl ReplicatedImageName "docker.io/fluent/fluent-bit:3.2" }}'
+        repository: '{{repl ReplicatedImageName "docker.io/fluent/fluent-bit" }}'
+        tag: "3.2"
     postgresql:
       image:
         registry: '{{repl ReplicatedImageRegistry "docker.io" }}'
@@ -51,12 +53,14 @@ spec:
       auth:
         password: '{{repl ConfigOption "cloudtty_auth_password" }}'
       image:
-        repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude-cloudtty:latest" }}'
+        repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude-cloudtty" }}'
+        tag: latest
         pullPolicy: Always
     code-server:
       password: '{{repl ConfigOption "code_server_password" }}'
       image:
-        repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude-code-server:latest" }}'
+        repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude-code-server" }}'
+        tag: latest
         pullPolicy: Always
 
   # Use optionalValues for boolean toggles — avoids non-bool string issues

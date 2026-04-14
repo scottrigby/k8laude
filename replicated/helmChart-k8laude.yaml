@@ -32,12 +32,6 @@ spec:
     claude:
       oauthToken: '{{repl ConfigOption "oauth_token" }}'
       apiKey: '{{repl ConfigOption "api_key" }}'
-      debug:
-        enabled: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
-    postgresql:
-      enabled: '{{repl and (ConfigOptionEquals "debug_logging_enabled" "1") (ConfigOptionEquals "debug_log_storage" "builtin") }}'
-      auth:
-        password: '{{repl ConfigOption "embedded_db_password" }}'
     externalDatabase:
       host: '{{repl ConfigOption "external_db_host" }}'
       port: '{{repl ConfigOption "external_db_port" }}'
@@ -45,16 +39,61 @@ spec:
       password: '{{repl ConfigOption "external_db_password" }}'
       database: '{{repl ConfigOption "external_db_name" }}'
     cloudtty:
-      enabled: '{{repl ConfigOptionEquals "cloudtty_enabled" "1" }}'
       auth:
         password: '{{repl ConfigOption "cloudtty_auth_password" }}'
       image:
         repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "ghcr.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "scottrigby" }}/k8laude-cloudtty'
     code-server:
-      enabled: '{{repl ConfigOptionEquals "code_server_enabled" "1" }}'
       password: '{{repl ConfigOption "code_server_password" }}'
       image:
         repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "ghcr.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "scottrigby" }}/k8laude-code-server'
+
+  # Use optionalValues for boolean toggles — avoids non-bool string issues
+  optionalValues:
+    - when: '{{repl ConfigOptionEquals "cloudtty_enabled" "1" }}'
+      recursiveMerge: true
+      values:
+        cloudtty:
+          enabled: true
+    - when: '{{repl not (ConfigOptionEquals "cloudtty_enabled" "1") }}'
+      recursiveMerge: true
+      values:
+        cloudtty:
+          enabled: false
+    - when: '{{repl ConfigOptionEquals "code_server_enabled" "1" }}'
+      recursiveMerge: true
+      values:
+        code-server:
+          enabled: true
+    - when: '{{repl not (ConfigOptionEquals "code_server_enabled" "1") }}'
+      recursiveMerge: true
+      values:
+        code-server:
+          enabled: false
+    - when: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
+      recursiveMerge: true
+      values:
+        claude:
+          debug:
+            enabled: true
+    - when: '{{repl not (ConfigOptionEquals "debug_logging_enabled" "1") }}'
+      recursiveMerge: true
+      values:
+        claude:
+          debug:
+            enabled: false
+    - when: '{{repl and (ConfigOptionEquals "debug_logging_enabled" "1") (ConfigOptionEquals "debug_log_storage" "builtin") }}'
+      recursiveMerge: true
+      values:
+        postgresql:
+          enabled: true
+          auth:
+            password: '{{repl ConfigOption "embedded_db_password" }}'
+    - when: '{{repl not (and (ConfigOptionEquals "debug_logging_enabled" "1") (ConfigOptionEquals "debug_log_storage" "builtin")) }}'
+      recursiveMerge: true
+      values:
+        postgresql:
+          enabled: false
 
   namespace: '{{repl Namespace }}'
   builder:

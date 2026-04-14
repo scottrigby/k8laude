@@ -212,3 +212,28 @@ CloudTTY is a subchart at `chart/charts/cloudtty/` with `cloudtty.enabled=false`
 - Audio tools (alsa-utils, sox, pulseaudio-utils, libasound2-plugins) for future voice mode
 
 See `chart/charts/cloudtty/BUILD.md` for build commands.
+
+## Preflight Checks & Support Bundles
+
+k8laude uses the [troubleshoot.sh](https://troubleshoot.sh) framework for pre-install validation and diagnostic data collection.
+
+**Dual-spec architecture**: Specs exist in two forms to support both install methods:
+
+| Install Method | Spec Location | Discovery |
+|---|---|---|
+| **Helm CLI** (`helm install`) | `chart/templates/preflight.yaml`, `supportbundle.yaml` (Secrets with `troubleshoot.sh/kind` labels) | `kubectl preflight --load-cluster-specs` / `kubectl support-bundle --load-cluster-specs` |
+| **KOTS / Embedded Cluster** | `replicated/kots-preflight.yaml`, `kots-support-bundle.yaml` (standalone CRs) | KOTS Admin Console reads them directly |
+
+The Helm chart Secrets use Helm template functions (`.Release.Name`, `.Release.Namespace`, `.Values.*`) for dynamic values. The KOTS CRs use `repl{{ Namespace }}` template functions.
+
+**Support bundle from app UI** (Helm installs with SDK): The landing page has a "Generate Support Bundle" button that runs `support-bundle --load-cluster-specs` asynchronously (non-blocking `exec` to keep the health endpoint responsive during collection), then uploads the tarball to the Vendor Portal via `POST /api/v1/supportbundle`. Analyzer results are extracted from `analysis.json` in the tarball and displayed as a summary.
+
+## KOTS Config Screen
+
+The Admin Console config screen (`replicated/kots-config.yaml`) provides install-time configuration for Embedded Cluster and KOTS installs:
+
+- **Authentication**: OAuth token vs API key selection with conditional fields
+- **Database**: Embedded PostgreSQL vs external, with conditional connection fields and hostname regex validation. Generated password (`RandomString 24`) persists across upgrades.
+- **Features**: CloudTTY, code-server, debug logging toggles. Each toggle controls whether the corresponding Deployment/StatefulSet is created. Voice mode gated by license entitlement.
+
+The landing page adapts to feature toggles: when CloudTTY is disabled, it shows `kubectl exec` instructions instead of a terminal link; when code-server is disabled, it shows a "bring your own tools" message.

@@ -265,26 +265,43 @@ data:
           <tr><td><strong>Status</strong></td><td>Running</td></tr>
           <tr><td><strong>Claude Version</strong></td><td>${version}</td></tr>
           </table>
-          {{- with .Values.landingPage }}
+          {{- if and (hasKey .Values "cloudtty") .Values.cloudtty.enabled }}
           <div class="card">
             <strong>Web Terminal</strong><br>
+            {{- with .Values.landingPage }}
             {{- if .terminalUrl }}
             <a href="{{ .terminalUrl }}">Open Claude Code CLI in browser</a>
             {{- else }}
             <code>kubectl port-forward -n ${ns} svc/k8laude-cloudtty 7681</code>
             <p style="margin:4px 0 0"><a href="http://127.0.0.1:7681/term/">http://127.0.0.1:7681/term/</a></p>
             {{- end }}
+            {{- end }}
           </div>
+          {{- else }}
+          <div class="card">
+            <strong>Claude Code CLI</strong><br>
+            <p style="margin:4px 0 0;color:#565f89">Access via kubectl exec:</p>
+            <code>kubectl -n ${ns} exec -it statefulset/k8laude -- claude --dangerously-skip-permissions</code>
+          </div>
+          {{- end }}
+          {{- if index .Values "code-server" "enabled" }}
           <div class="card">
             <strong>Web IDE</strong><br>
+            {{- with .Values.landingPage }}
             {{- if .ideUrl }}
             <a href="{{ .ideUrl }}">Open code-server in browser</a>
             {{- else }}
             <code>kubectl port-forward -n ${ns} svc/k8laude-code-server 8080</code>
             <p style="margin:4px 0 0"><a href="http://127.0.0.1:8080/">http://127.0.0.1:8080/</a></p>
             {{- end }}
-          {{- end }}
+            {{- end }}
           </div>
+          {{- else }}
+          <div class="card">
+            <strong>Workspace Files</strong><br>
+            <p style="margin:4px 0 0;color:#565f89">Web IDE is disabled. Use your own tools to access workspace files via the shared PVC.</p>
+          </div>
+          {{- end }}
           {{- if .Values.replicated.enabled }}
           <div class="card">
             <strong>Support Bundle</strong><br>

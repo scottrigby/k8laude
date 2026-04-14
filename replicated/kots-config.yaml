@@ -39,6 +39,7 @@ spec:
     - name: database
       title: Database
       description: Configure PostgreSQL for debug log storage.
+      when: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
       items:
         - name: db_type
           title: Database Type
@@ -100,23 +101,44 @@ spec:
           type: bool
           default: "1"
           help_text: |
-            Enable the browser-based terminal for Claude Code access.
-            When disabled, users must use kubectl exec to access Claude Code.
+            Enable the browser-based terminal for Claude Code access via web browser.
+            When disabled, the cloudtty Deployment is not created. Users access Claude
+            Code via kubectl exec:
+              kubectl -n <namespace> exec -it statefulset/k8laude -- claude --dangerously-skip-permissions
+        - name: cloudtty_auth_password
+          title: Terminal Password
+          type: password
+          default: k8laude
+          when: '{{repl ConfigOptionEquals "cloudtty_enabled" "1" }}'
+          help_text: |
+            Basic auth password for the browser terminal. Username is 'k8laude'.
+            Set a strong password for production deployments.
         - name: code_server_enabled
           title: Web IDE (code-server)
           type: bool
           default: "1"
           help_text: |
             Enable the browser-based VS Code IDE for editing workspace files.
-            When disabled, users must use their own local IDE with kubectl port-forward.
+            When disabled, the code-server Deployment is not created. Users can use
+            their own local IDE or tools to work with files in the shared workspace volume.
+        - name: code_server_password
+          title: IDE Password
+          type: password
+          default: k8laude
+          when: '{{repl ConfigOptionEquals "code_server_enabled" "1" }}'
+          help_text: |
+            Password for the browser-based VS Code IDE.
+            Set a strong password for production deployments.
         - name: debug_logging_enabled
           title: Debug Logging
           type: bool
           default: "1"
           help_text: |
-            Enable Claude Code debug log collection via Fluent Bit sidecar.
-            Logs are stored in PostgreSQL for searchability.
-            Disable to reduce resource usage if debug logs are not needed.
+            Enable Claude Code debug log collection. When enabled, Claude runs with
+            --debug --verbose flags, a Fluent Bit sidecar ships logs to PostgreSQL,
+            and the Database section above configures storage.
+            When disabled, no debug logs are collected, PostgreSQL is not deployed
+            (if embedded), and the Fluent Bit sidecar is not created.
         - name: voice_mode_enabled
           title: Voice Mode
           type: bool
@@ -124,5 +146,6 @@ spec:
           when: '{{repl LicenseFieldValue "voice_mode_enabled" }}'
           help_text: |
             Enable voice interaction with Claude Code.
-            This feature requires the voice_mode_enabled license entitlement.
-            Contact your account team to enable this on your license.
+            This option is only available when the voice_mode_enabled entitlement
+            is present on your license. Contact your account team to add this
+            entitlement to your license.

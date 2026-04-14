@@ -9,7 +9,7 @@ spec:
 
   helmUpgradeFlags:
     - --timeout
-    - 5m
+    - 30m
     - --wait
 
   values:
@@ -25,7 +25,7 @@ spec:
       - name: enterprise-pull-secret
     fluentbit:
       image:
-        repository: '{{repl ReplicatedImageName "docker.io/fluent/fluent-bit" }}'
+        repository: '{{repl ReplicatedImageName "docker.io/fluent/fluent-bit" true }}'
         tag: "3.2"
     postgresql:
       image:

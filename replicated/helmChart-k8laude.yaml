@@ -23,20 +23,17 @@ spec:
     fluentbit:
       image:
         repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "docker.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "fluent" }}/fluent-bit'
-    # Disable ingress stack (single-node EC, Admin Console handles access)
     ingress:
       enabled: false
     cert-manager:
       enabled: false
     traefik:
       enabled: false
-    # Auth + debug from KOTS config
     claude:
       oauthToken: '{{repl ConfigOption "oauth_token" }}'
       apiKey: '{{repl ConfigOption "api_key" }}'
       debug:
         enabled: '{{repl ConfigOptionEquals "debug_logging_enabled" "1" }}'
-    # Database config
     postgresql:
       enabled: '{{repl and (ConfigOptionEquals "debug_logging_enabled" "1") (ConfigOptionEquals "debug_log_storage" "builtin") }}'
       auth:
@@ -47,11 +44,12 @@ spec:
       username: '{{repl ConfigOption "external_db_username" }}'
       password: '{{repl ConfigOption "external_db_password" }}'
       database: '{{repl ConfigOption "external_db_name" }}'
-    # Feature toggles
     cloudtty:
       enabled: '{{repl ConfigOptionEquals "cloudtty_enabled" "1" }}'
       auth:
         password: '{{repl ConfigOption "cloudtty_auth_password" }}'
+      image:
+        repository: '{{repl HasLocalRegistry | ternary LocalRegistryHost "ghcr.io" }}/{{repl HasLocalRegistry | ternary LocalRegistryNamespace "scottrigby" }}/k8laude-cloudtty'
     code-server:
       enabled: '{{repl ConfigOptionEquals "code_server_enabled" "1" }}'
       password: '{{repl ConfigOption "code_server_password" }}'

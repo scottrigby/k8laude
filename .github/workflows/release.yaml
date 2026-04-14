@@ -3,6 +3,8 @@ name: Release — build, release, promote
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 env:
@@ -28,8 +30,31 @@ jobs:
       - name: Set version
         id: version
         run: |
-          VERSION="0.1.0-$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Tag push: use the tag as version (strip 'v' prefix)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            # Branch push: use timestamp-sha format
+            VERSION="0.1.0-$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Determine channel
+        id: channel
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+            if [[ "$TAG" == *-* ]]; then
+              # Pre-release tag (e.g., 1.0.0-alpha, 1.0.0-rc.1) → Beta
+              echo "channel=Beta" >> $GITHUB_OUTPUT
+            else
+              # Stable tag (e.g., 1.0.0) → Stable
+              echo "channel=Stable" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Branch push → Unstable
+            echo "channel=Unstable" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -91,12 +116,13 @@ jobs:
             sed "s/chartVersion: .*/chartVersion: \"${{steps.version.outputs.version}}\"/" "$f" > /tmp/release/$(basename "$f")
           done
 
-      - name: Create release and promote to Unstable
+      - name: Create release and promote
         uses: replicatedhq/replicated-actions/create-release@main
         with:
           app-slug: k8laude
           api-token: ${{secrets.REPLICATED_API_TOKEN}}
           yaml-dir: /tmp/release
           version: ${{steps.version.outputs.version}}
-          promote-channel: Unstable
-          release-notes: "Automated release from main (${{github.sha}})"
+          promote-channel: ${{steps.channel.outputs.channel}}
+          release-notes: |
+            ${{steps.channel.outputs.channel == 'Unstable' && format('Automated release from main ({0})', github.sha) || format('Release {0}', steps.version.outputs.version)}}

@@ -44,3 +44,4 @@
 - [ ] Multi-agent: multiple Claude pods on shared workspace
 - [ ] KOTS config screen: networking/access section — Access Method (port-forward, NodePort, custom domain), landing page URLs, ingress toggle, TLS mode (self-signed, Let's Encrypt staging→prod, manual), domain config. Currently EC installs hardcode ingress disabled.
 - [ ] Remove `ImagePullSecretName` from HelmChart CR — returns `k8laude-registry` which doesn't exist. `enterprise-pull-secret` handles all pulls.
+# 2026-04-16T20:32:26Z

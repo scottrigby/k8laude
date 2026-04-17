@@ -98,10 +98,18 @@ jobs:
         env:
           KUBECONFIG: /tmp/kubeconfig.yaml
         run: |
+          kubectl create namespace demo
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{github.actor}} \
+            --docker-password=${{secrets.GITHUB_TOKEN}} \
+            -n demo
+
           helm dependency update chart
-          helm install k8laude chart -n demo --create-namespace \
+          helm install k8laude chart -n demo \
             --set image.tag=sha-${{github.sha}} \
             --set image.pullPolicy=Always \
+            --set imagePullSecrets[0].name=ghcr-pull-secret \
             --set ingress.enabled=false \
             --set cert-manager.enabled=false \
             --set traefik.enabled=false \

@@ -86,13 +86,17 @@ jobs:
           kubernetes-version: "1.33"
           cluster-name: k8laude-pr-${{github.event.number}}
           ttl: 1h
+          wait-duration: 10m
+
+      - name: Write kubeconfig
+        run: echo "${{steps.cluster.outputs.cluster-kubeconfig}}" > /tmp/kubeconfig.yaml
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
 
       - name: Install app and test
         env:
-          KUBECONFIG: ${{steps.cluster.outputs.cluster-kubeconfig-path}}
+          KUBECONFIG: /tmp/kubeconfig.yaml
         run: |
           helm dependency update chart
           helm install k8laude chart -n demo --create-namespace \

@@ -86,7 +86,7 @@ jobs:
           kubernetes-version: "1.33"
           cluster-name: k8laude-pr-${{github.event.number}}
           ttl: 1h
-          wait-duration: 10m
+          timeout-minutes: 10
 
       - name: Write kubeconfig
         run: echo "${{steps.cluster.outputs.cluster-kubeconfig}}" > /tmp/kubeconfig.yaml
@@ -105,7 +105,7 @@ jobs:
             --set ingress.enabled=false \
             --set cert-manager.enabled=false \
             --set traefik.enabled=false \
-            --wait --timeout 5m
+            --wait --timeout 15m
 
           kubectl exec -n demo k8laude-0 -c claude -- curl -sf http://localhost:3000/healthz
 

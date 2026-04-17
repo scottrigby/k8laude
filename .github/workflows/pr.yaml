@@ -103,7 +103,7 @@ jobs:
             --set traefik.enabled=false \
             --wait --timeout 5m
 
-          kubectl exec -n demo k8laude-0 -c claude -- curl -sf http://localhost:7681/healthz
+          kubectl exec -n demo k8laude-0 -c claude -- curl -sf http://localhost:3000/healthz
 
       - name: Cleanup cluster
         if: always()

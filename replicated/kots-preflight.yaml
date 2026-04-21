@@ -1,4 +1,4 @@
-apiVersion: troubleshoot.sh/v1beta2
+apiVersion: troubleshoot.sh/v1beta3
 kind: Preflight
 metadata:
   name: k8laude-preflight

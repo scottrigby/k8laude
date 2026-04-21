@@ -1,5 +1,5 @@
 {{- define "k8laude.preflight" -}}
-apiVersion: troubleshoot.sh/v1beta2
+apiVersion: troubleshoot.sh/v1beta3
 kind: Preflight
 metadata:
   name: {{ .Release.Name }}-preflight

@@ -7,6 +7,9 @@ spec:
   title: k8laude
   icon: https://raw.githubusercontent.com/scottrigby/k8laude/main/branding/asterisk/k8laude-icon-color.svg
   allowRollback: true
+  additionalImages:
+    - ghcr.io/scottrigby/k8laude-cloudtty
+    - ghcr.io/scottrigby/k8laude-code-server
   statusInformers:
     - k8laude/statefulset/k8laude
     - k8laude/deployment/k8laude-code-server

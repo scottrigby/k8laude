@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scottrigby.io/k8laude/chart.values.schema.json",
+  "title": "k8laude Helm chart values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag":        { "type": "string", "minLength": 1 },
+        "pullPolicy": { "type": "string", "enum": ["Always", "Never", "IfNotPresent"] }
+      },
+      "required": ["repository", "tag"]
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "name": { "type": "string" } },
+        "required": ["name"]
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu":    { "type": ["string", "number"] },
+            "memory": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu":    { "type": ["string", "number"] },
+            "memory": { "type": "string" }
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled":      { "type": "boolean" },
+        "storageClass": { "type": "string" },
+        "size":         { "type": "string", "pattern": "^[0-9]+(Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|K)?$" }
+      },
+      "required": ["enabled"]
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["type", "port"]
+    },
+    "landingPage": {
+      "type": "object",
+      "properties": {
+        "terminalUrl": { "type": "string" },
+        "ideUrl":      { "type": "string" },
+        "homeUrl":     { "type": "string" }
+      }
+    },
+    "claude": {
+      "type": "object",
+      "properties": {
+        "configDir":           { "type": "string" },
+        "oauthToken":          { "type": "string" },
+        "oauthTokenSecret":    { "type": "string" },
+        "apiKey":              { "type": "string" },
+        "apiKeySecret":        { "type": "string" },
+        "credentialsSecret":   { "type": "string" },
+        "hooks": {
+          "type": "object",
+          "properties": {
+            "preciseTaskCompletion": { "type": "boolean" },
+            "untrackedCompletion":   { "type": "boolean" },
+            "questionDetection":     { "type": "boolean" },
+            "idlePrompt":            { "type": "boolean" }
+          }
+        },
+        "plugins": {
+          "type": "object",
+          "properties": {
+            "askQuestions": { "type": "boolean" }
+          }
+        },
+        "customPlugins": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "description": "Must not set both oauthToken and apiKey (choose one auth method).",
+          "not": {
+            "allOf": [
+              { "properties": { "oauthToken": { "type": "string", "minLength": 1 } }, "required": ["oauthToken"] },
+              { "properties": { "apiKey":     { "type": "string", "minLength": 1 } }, "required": ["apiKey"] }
+            ]
+          }
+        }
+      ]
+    },
+    "fluentbit": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image":   { "type": "object" }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "Bitnami PostgreSQL subchart. Set enabled=false to use externalDatabase instead.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "auth":    { "type": "object" },
+        "image":   { "type": "object" },
+        "primary": { "type": "object" }
+      },
+      "required": ["enabled"]
+    },
+    "code-server": {
+      "type": "object",
+      "description": "code-server subchart. Set enabled=false to skip the in-cluster IDE.",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["enabled"]
+    },
+    "traefik": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } },
+      "required": ["enabled"]
+    },
+    "cert-manager": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } },
+      "required": ["enabled"]
+    },
+    "replicated": {
+      "type": "object",
+      "description": "Replicated SDK subchart. Enable for Replicated Vendor Portal integration.",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled":   { "type": "boolean" },
+        "className": { "type": "string" },
+        "host":      { "type": "string" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "acme": {
+              "type": "object",
+              "properties": {
+                "staging":                  { "type": "boolean" },
+                "email":                    { "type": "string", "format": "email" },
+                "digitalocean": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken":       { "type": "string" },
+                    "accessTokenSecret": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cloudtty": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingress": { "type": "object" },
+        "auth":    { "type": "object" }
+      }
+    },
+    "externalDatabase": {
+      "type": "object",
+      "description": "Used when postgresql.enabled=false. Connection details for an external PostgreSQL instance (e.g. AWS RDS, Cloud SQL, or a standalone helm install).",
+      "properties": {
+        "host":     { "type": "string" },
+        "port":     { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "database": { "type": "string" }
+      }
+    }
+  }
+}

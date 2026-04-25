@@ -7,7 +7,7 @@ appVersion: "0.0.0"
 
 dependencies:
   - name: postgresql
-    version: "16.x.x"
+    version: ">=16.0.0"
     repository: https://charts.bitnami.com/bitnami
     condition: postgresql.enabled
   - name: code-server

@@ -6,26 +6,37 @@ Analysis of k8laude container images and security considerations.
 
 | Image | Base | Purpose | Runs as |
 |-------|------|---------|---------|
-| `k8laude` | `node:20` (Debian Bookworm) | Claude Code + healthcheck.js | `node` (non-root) |
+| `k8laude` | `node:20-alpine` (Alpine musl) | Claude Code + healthcheck.js | `node` (non-root) |
 | `k8laude-cloudtty` | `node:20-bookworm-slim` | ttyd + proxy server | `node` (non-root) |
 | `k8laude-code-server` | `codercom/code-server:4.109.5` | VS Code in browser | `coder` (non-root) |
 | `postgresql` | `bitnami/postgresql:17.6.0` | Debug log storage | `1001` (non-root) |
 | `fluent-bit` | `fluent/fluent-bit:3.2` | Log shipper sidecar | non-root |
 
+## CVE Reduction History
+
+| Image | Baseline | Post-slim | Post-alpine | Reduction |
+|-------|----------|-----------|-------------|-----------|
+| k8laude | 37 crit / 1486 total | 1 crit / 149 total | TBD | ~90% |
+| k8laude-code-server | 0 (not scanned) | 5 crit / 223 total | 5 crit / 223 total | upstream controlled |
+| postgresql | 4 crit / 137 total | 12 crit / 165 total | 12 crit / 165 total | upstream controlled |
+
+*Baseline: node:20 full Debian. Post-slim: node:20-bookworm-slim. Post-alpine: node:20-alpine (current).*
+
 ## Known CVE Sources
 
 ### k8laude (highest attack surface)
 
-**Base image `node:20`** (full Debian Bookworm):
-- Includes development tools: git, vim, nano, zsh, man-db, procps, sudo, gnupg2
-- These are intentional — Claude Code needs git and a shell environment to function
-- Full Debian base has more CVEs than slim/alpine variants
+**Current base: `node:20-alpine`** (Alpine Linux, musl libc):
+- Switched from `node:20` (full Debian) → reduced CVEs by ~90%
+- Then switched from `node:20-bookworm-slim` → Alpine for further reduction
+- Installs only required packages: bash, git, curl, jq, less, procps, unzip, gnupg, nano, ca-certificates
+- All containers run as non-root (`node` user, uid 1000)
+- No sudo, no vim, no man pages, no zsh
 
-**Mitigation options:**
-- Switch to `node:20-bookworm-slim` and install only required packages
-- Use Chainguard or Replicated securebuild images for reduced CVE surface
-- Remove `sudo` (not needed at runtime, was for devcontainer compatibility)
-- Remove `vim`, `nano`, `man-db` (convenience tools, not required)
+**Why Claude Code needs a non-minimal base:**
+- Requires git (for file tracking, commit operations)
+- Requires bash (shell environment for code execution)
+- Cannot use distroless/Chainguard-distroless — no shell or package manager
 
 ### k8laude-cloudtty (moderate)
 

@@ -43,10 +43,14 @@ WORKDIR /workspace
 # Install kubectl and support-bundle plugin (for support bundle generation via UI)
 # Alpine uses uname -m (x86_64/aarch64); map to kubectl arch format (amd64/arm64)
 RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
-  curl -fsSL --retry 3 --retry-delay 5 "https://dl.k8s.io/release/$(curl -L -s --retry 3 https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+    "https://dl.k8s.io/release/$(curl -L -s --retry 3 --retry-all-errors https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
     -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl && \
-  curl -fsSL --retry 3 --retry-delay 5 "https://github.com/replicatedhq/troubleshoot/releases/latest/download/support-bundle_linux_${ARCH}.tar.gz" \
-    | tar xzf - -C /usr/local/bin support-bundle && chmod +x /usr/local/bin/support-bundle
+  curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+    "https://github.com/replicatedhq/troubleshoot/releases/latest/download/support-bundle_linux_${ARCH}.tar.gz" \
+    -o /tmp/support-bundle.tar.gz && \
+  tar xzf /tmp/support-bundle.tar.gz -C /usr/local/bin support-bundle && \
+  chmod +x /usr/local/bin/support-bundle && rm /tmp/support-bundle.tar.gz
 
 # Set up non-root user
 USER node

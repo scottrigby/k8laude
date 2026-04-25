@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:20-alpine
 
 LABEL org.opencontainers.image.source=https://github.com/scottrigby/k8laude
 
@@ -7,17 +7,18 @@ ENV TZ="$TZ"
 
 ARG CLAUDE_CODE_VERSION=latest
 
-# Install required tools only (slim base for reduced CVE surface)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install required tools only (alpine musl base for minimal CVE surface)
+RUN apk add --no-cache \
+  bash \
   less \
   git \
   procps \
   unzip \
-  gnupg2 \
+  gnupg \
   jq \
   curl \
-  ca-certificates \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
+  nano \
+  ca-certificates
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -40,7 +41,8 @@ RUN mkdir -p /workspace /home/node/.claude && \
 WORKDIR /workspace
 
 # Install kubectl and support-bundle plugin (for support bundle generation via UI)
-RUN ARCH=$(dpkg --print-architecture) && \
+# Alpine uses uname -m (x86_64/aarch64); map to kubectl arch format (amd64/arm64)
+RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
   curl -fsSL "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
     -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl && \
   curl -fsSL "https://github.com/replicatedhq/troubleshoot/releases/latest/download/support-bundle_linux_${ARCH}.tar.gz" \

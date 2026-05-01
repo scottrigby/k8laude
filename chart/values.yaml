@@ -205,7 +205,7 @@ cert-manager:
 # Replicated SDK — instance reporting, license, metrics, updates
 replicated:
   enabled: false
-  nameOverride: k8laude-sdk
+  # nameOverride omitted — use default "replicated" so troubleshoot collectors find the secret
 
 # Ingress and TLS configuration (off by default)
 ingress:

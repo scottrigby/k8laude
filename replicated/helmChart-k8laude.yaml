@@ -15,7 +15,7 @@ spec:
   values:
     replicated:
       enabled: true
-      nameOverride: k8laude-sdk
+      # nameOverride omitted — use default "replicated" secret name for troubleshoot
     image:
       repository: '{{repl ReplicatedImageName "ghcr.io/scottrigby/k8laude" }}'
       tag: latest

@@ -13,7 +13,7 @@ data:
     const fs = require('fs');
 
     // SDK API endpoint (in-cluster service)
-    const SDK_HOST = process.env.REPLICATED_SDK_HOST || 'k8laude-sdk';
+    const SDK_HOST = process.env.REPLICATED_SDK_HOST || 'replicated';
     const SDK_PORT = process.env.REPLICATED_SDK_PORT || '3000';
     const SDK_URL = `http://${SDK_HOST}:${SDK_PORT}`;
 

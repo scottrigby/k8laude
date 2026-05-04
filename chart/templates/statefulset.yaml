@@ -92,7 +92,7 @@ spec:
             {{- end}}
             {{- if .Values.replicated.enabled}}
             - name: REPLICATED_SDK_HOST
-              value: {{.Release.Name}}-sdk
+              value: {{ if .Values.replicated.nameOverride }}{{ .Values.replicated.nameOverride }}{{ else }}replicated{{ end }}
             - name: REPLICATED_SDK_PORT
               value: "3000"
             {{- end}}

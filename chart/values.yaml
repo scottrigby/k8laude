@@ -100,7 +100,7 @@ claude:
 fluentbit:
   image:
     repository: fluent/fluent-bit
-    tag: "3.2"
+    tag: "5.0"
 
 # PostgreSQL subchart (Bitnami) — stores searchable Claude debug logs
 # BYO: set postgresql.enabled=false and provide external connection via externalDatabase
